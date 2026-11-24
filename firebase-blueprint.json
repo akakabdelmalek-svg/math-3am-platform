@@ -1,0 +1,650 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user account profile for a 3AM student or teacher/admin.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID",
+          "maxLength": 128
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Student or teacher full name",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "email": {
+          "type": "string",
+          "description": "Account email address (owner and admin read only)",
+          "maxLength": 160
+        },
+        "classGroup": {
+          "type": "string",
+          "description": "3AM class label e.g. 3AM1",
+          "maxLength": 30
+        },
+        "role": {
+          "type": "string",
+          "enum": ["student", "admin"],
+          "description": "User role; client registration may only assign student"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp"
+        }
+      },
+      "required": ["uid", "displayName", "role", "createdAt", "updatedAt"]
+    },
+    "StudentProgress": {
+      "title": "StudentProgress",
+      "description": "Tracks completed lessons, completed exercises, and study streak for each student.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Student Firebase Auth UID",
+          "maxLength": 128
+        },
+        "studentName": {
+          "type": "string",
+          "description": "Student display name",
+          "maxLength": 80
+        },
+        "completedCourseIds": {
+          "type": "array",
+          "description": "Bounded list of completed course IDs (max 100)"
+        },
+        "completedExerciseIds": {
+          "type": "array",
+          "description": "Bounded list of completed exercise IDs (max 200)"
+        },
+        "totalAttempts": {
+          "type": "number",
+          "description": "Total quiz attempts"
+        },
+        "bestOutOf20": {
+          "type": "number",
+          "description": "Best score out of 20"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp"
+        }
+      },
+      "required": [
+        "userId",
+        "studentName",
+        "completedCourseIds",
+        "completedExerciseIds",
+        "totalAttempts",
+        "bestOutOf20",
+        "updatedAt"
+      ]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "A 3AM Mathematics lesson or course module organized by curriculum chapter.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Lesson title in Arabic",
+          "minLength": 2,
+          "maxLength": 160
+        },
+        "chapter": {
+          "type": "string",
+          "description": "3AM curriculum chapter name",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "chapterOrder": {
+          "type": "number",
+          "description": "Numeric ordering of the chapter"
+        },
+        "summary": {
+          "type": "string",
+          "description": "Concise lesson summary and learning objectives",
+          "maxLength": 4000
+        },
+        "keyRules": {
+          "type": "string",
+          "description": "Key formulas and mathematical rules (supports KaTeX LaTeX)",
+          "maxLength": 4000
+        },
+        "videoUrl": {
+          "type": "string",
+          "description": "Optional YouTube or video lesson link",
+          "maxLength": 500
+        },
+        "pdfUrl": {
+          "type": "string",
+          "description": "Optional PDF or Google Drive lesson link",
+          "maxLength": 500
+        },
+        "attachments": {
+          "type": "array",
+          "description": "Bounded list of imported lesson files metadata (JPG, DOCX, PDF, PPTX; max 10)"
+        },
+        "durationMin": {
+          "type": "number",
+          "description": "Estimated study duration in minutes"
+        },
+        "published": {
+          "type": "boolean",
+          "description": "Whether the lesson is visible to students"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Admin UID who created the lesson",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last-updated timestamp"
+        }
+      },
+      "required": [
+        "title",
+        "chapter",
+        "chapterOrder",
+        "summary",
+        "published",
+        "createdBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Exercise": {
+      "title": "Exercise",
+      "description": "An interactive 3AM Mathematics exercise, daily practice, devoir, or exam with questions.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Exercise or quiz title",
+          "minLength": 2,
+          "maxLength": 160
+        },
+        "chapter": {
+          "type": "string",
+          "description": "Curriculum chapter this exercise belongs to",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "category": {
+          "type": "string",
+          "enum": ["daily", "devoir", "exam", "interactive", "geometry"],
+          "description": "Type of math assessment including interactive geometry"
+        },
+        "difficulty": {
+          "type": "string",
+          "enum": ["easy", "medium", "hard"],
+          "description": "Difficulty tier"
+        },
+        "durationMinutes": {
+          "type": "number",
+          "description": "Suggested time limit in minutes"
+        },
+        "description": {
+          "type": "string",
+          "description": "Instructions or problem statement for the student",
+          "maxLength": 2000
+        },
+        "attachmentUrl": {
+          "type": "string",
+          "description": "Optional external PDF or worksheet link",
+          "maxLength": 500
+        },
+        "geometryData": {
+          "type": "object",
+          "description": "Interactive geometry figure shapes, drawing prompt, and teacher drawing/written correction"
+        },
+        "questions": {
+          "type": "array",
+          "description": "Bounded list of exercise questions (1 to 30 questions supporting choice, number, and text answers)"
+        },
+        "published": {
+          "type": "boolean",
+          "description": "Whether the exercise is visible to students"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Admin UID who created the exercise",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last-updated timestamp"
+        }
+      },
+      "required": [
+        "title",
+        "chapter",
+        "category",
+        "difficulty",
+        "durationMinutes",
+        "questions",
+        "published",
+        "createdBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Event": {
+      "title": "Event",
+      "description": "An upcoming academy event such as a live Zoom session, exam date, devoir, or announcement.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Event headline",
+          "minLength": 2,
+          "maxLength": 160
+        },
+        "eventType": {
+          "type": "string",
+          "enum": ["live", "exam", "devoir", "announcement"],
+          "description": "Type of academic event"
+        },
+        "eventDate": {
+          "type": "string",
+          "description": "ISO date string YYYY-MM-DD",
+          "maxLength": 20
+        },
+        "eventTime": {
+          "type": "string",
+          "description": "Time string e.g. 18:00",
+          "maxLength": 20
+        },
+        "description": {
+          "type": "string",
+          "description": "Event details and instructions",
+          "maxLength": 1500
+        },
+        "link": {
+          "type": "string",
+          "description": "Optional Zoom or resource link",
+          "maxLength": 500
+        },
+        "published": {
+          "type": "boolean",
+          "description": "Whether the event is visible to students"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Admin UID who created the event",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last-updated timestamp"
+        }
+      },
+      "required": [
+        "title",
+        "eventType",
+        "eventDate",
+        "eventTime",
+        "description",
+        "published",
+        "createdBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Score": {
+      "title": "Score",
+      "description": "A student's recorded score and result on a 3AM Math exercise.",
+      "type": "object",
+      "properties": {
+        "studentName": {
+          "type": "string",
+          "description": "Student display name",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "studentClass": {
+          "type": "string",
+          "description": "Optional 3AM class group label e.g. 3AM1",
+          "maxLength": 30
+        },
+        "studentUid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the submitting student",
+          "maxLength": 128
+        },
+        "exerciseId": {
+          "type": "string",
+          "description": "ID of the solved exercise",
+          "maxLength": 128
+        },
+        "exerciseTitle": {
+          "type": "string",
+          "description": "Title of the solved exercise",
+          "maxLength": 160
+        },
+        "chapter": {
+          "type": "string",
+          "description": "Chapter of the solved exercise",
+          "maxLength": 100
+        },
+        "score": {
+          "type": "number",
+          "description": "Earned points or correct answers count"
+        },
+        "total": {
+          "type": "number",
+          "description": "Maximum possible points or questions"
+        },
+        "outOf20": {
+          "type": "number",
+          "description": "Normalized Algerian grade out of 20"
+        },
+        "percentage": {
+          "type": "number",
+          "description": "Score percentage 0-100"
+        },
+        "durationSeconds": {
+          "type": "number",
+          "description": "Time taken in seconds"
+        },
+        "isPublic": {
+          "type": "boolean",
+          "description": "Whether score appears on the classroom leaderboard"
+        },
+        "studentDrawing": {
+          "type": "array",
+          "description": "Optional bounded vector shapes drawn by the student for geometry exercises"
+        },
+        "teacherNote": {
+          "type": "string",
+          "description": "Teacher written correction/feedback on student work",
+          "maxLength": 2000
+        },
+        "teacherCorrectionShapes": {
+          "type": "array",
+          "description": "Teacher drawn vector correction shapes overlaid on student drawing"
+        },
+        "gradedStatus": {
+          "type": "string",
+          "enum": ["auto", "reviewed"],
+          "description": "Whether the submission is auto-graded or reviewed by teacher"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server submission timestamp"
+        }
+      },
+      "required": [
+        "studentName",
+        "studentUid",
+        "exerciseId",
+        "exerciseTitle",
+        "chapter",
+        "score",
+        "total",
+        "outOf20",
+        "percentage",
+        "durationSeconds",
+        "isPublic",
+        "createdAt"
+      ]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "Global academy settings such as announcement banner and end-of-year countdown date.",
+      "type": "object",
+      "properties": {
+        "announcement": {
+          "type": "string",
+          "description": "Pinned teacher announcement banner text",
+          "maxLength": 600
+        },
+        "targetDate": {
+          "type": "string",
+          "description": "Target countdown date YYYY-MM-DD",
+          "maxLength": 20
+        },
+        "targetLabel": {
+          "type": "string",
+          "description": "Label for the countdown banner",
+          "maxLength": 120
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "Admin UID who updated settings",
+          "maxLength": 128
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp"
+        }
+      },
+      "required": [
+        "announcement",
+        "targetDate",
+        "targetLabel",
+        "updatedBy",
+        "updatedAt"
+      ]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Authorized teacher/admin record keyed by Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Admin email address",
+          "maxLength": 160
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether admin privileges are active"
+        },
+        "accessCode": {
+          "type": "string",
+          "description": "Verified admin entry passcode submitted on activation",
+          "maxLength": 80
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        }
+      },
+      "required": [
+        "email",
+        "active",
+        "createdAt"
+      ]
+    "CourseAttachment": {
+      "title": "CourseAttachment",
+      "description": "Imported lesson file payload (JPG image, PDF, Word DOCX, or PowerPoint PPTX) linked to a Course.",
+      "type": "object",
+      "properties": {
+        "courseId": {
+          "type": "string",
+          "description": "Parent Course document ID",
+          "maxLength": 128
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Original filename",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "fileKind": {
+          "type": "string",
+          "enum": ["image", "pdf", "word", "powerpoint", "other"],
+          "description": "Classified attachment type"
+        },
+        "mimeType": {
+          "type": "string",
+          "description": "MIME type of the file",
+          "maxLength": 160
+        },
+        "sizeBytes": {
+          "type": "number",
+          "description": "File byte size"
+        },
+        "dataUrl": {
+          "type": "string",
+          "description": "Base64 data URL (or first chunk when chunkCount > 1) bounded under Firestore 1MB document limit",
+          "maxLength": 980000
+        },
+        "chunkCount": {
+          "type": "number",
+          "description": "Total number of chunks when a local file exceeds single-document size"
+        },
+        "published": {
+          "type": "boolean",
+          "description": "Whether the parent lesson is visible to students"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Admin UID who uploaded the attachment",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        }
+      },
+      "required": [
+        "courseId",
+        "fileName",
+        "fileKind",
+        "mimeType",
+        "sizeBytes",
+        "dataUrl",
+        "published",
+        "createdBy",
+        "createdAt"
+      ]
+    },
+    "CourseAttachmentChunk": {
+      "title": "CourseAttachmentChunk",
+      "description": "Subsequent base64 chunk for multi-MB local lesson files.",
+      "type": "object",
+      "properties": {
+        "attachmentId": {
+          "type": "string",
+          "description": "Parent CourseAttachment document ID",
+          "maxLength": 128
+        },
+        "courseId": {
+          "type": "string",
+          "description": "Parent Course document ID",
+          "maxLength": 128
+        },
+        "chunkIndex": {
+          "type": "number",
+          "description": "Zero-based chunk sequence index (>= 1)"
+        },
+        "dataChunk": {
+          "type": "string",
+          "description": "Base64 substring chunk",
+          "maxLength": 750000
+        },
+        "published": {
+          "type": "boolean",
+          "description": "Whether the parent lesson is visible to students"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Admin UID",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        }
+      },
+      "required": [
+        "attachmentId",
+        "courseId",
+        "chunkIndex",
+        "dataChunk",
+        "published",
+        "createdBy",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Stores student and teacher profile metadata (owner/admin read only)."
+    },
+    "/studentProgress/{userId}": {
+      "schema": { "$ref": "#/entities/StudentProgress" },
+      "description": "Stores each student's completed courses, completed exercises, and study progress."
+    },
+    "/courses/{courseId}": {
+      "schema": { "$ref": "#/entities/Course" },
+      "description": "Stores 3AM Mathematics lessons and curriculum modules."
+    },
+    "/courseAttachments/{attachmentId}": {
+      "schema": { "$ref": "#/entities/CourseAttachment" },
+      "description": "Stores imported local JPG, PDF, DOCX, and PPTX files attached to lessons."
+    },
+    "/courseAttachmentChunks/{chunkId}": {
+      "schema": { "$ref": "#/entities/CourseAttachmentChunk" },
+      "description": "Stores overflow chunks for large local lesson files."
+    },
+    "/exercises/{exerciseId}": {
+      "schema": { "$ref": "#/entities/Exercise" },
+      "description": "Stores interactive 3AM Math exercises and quizzes."
+    },
+    "/events/{eventId}": {
+      "schema": { "$ref": "#/entities/Event" },
+      "description": "Stores upcoming live sessions, tests, exams, and announcements."
+    },
+    "/scores/{scoreId}": {
+      "schema": { "$ref": "#/entities/Score" },
+      "description": "Stores student exercise submissions and grades (/20 and %)."
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/Setting" },
+      "description": "Stores global academy configuration (announcement and countdown)."
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/Admin" },
+      "description": "Stores authorized teacher/admin UIDs."
+    }
+  }
+}

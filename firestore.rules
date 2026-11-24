@@ -1,0 +1,435 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==================== Shared Security Primitives ====================
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isBootstrappedAdmin() {
+      return isSignedIn()
+        && request.auth.token.email == 'akakabdelmalek@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    function isAdminDoc() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.active == true;
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || isAdminDoc();
+    }
+
+    function isOptionalString(data, field, maxLen) {
+      return !(field in data) || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function isValidGeometryData(gd) {
+      return gd is map
+        && gd.keys().hasAll(['templateKey', 'canvasWidth', 'canvasHeight', 'baseShapes', 'drawPrompt', 'teacherCorrectionText', 'teacherCorrectionShapes'])
+        && gd.keys().hasOnly(['templateKey', 'canvasWidth', 'canvasHeight', 'baseShapes', 'drawPrompt', 'teacherCorrectionText', 'teacherCorrectionShapes', 'teacherCorrectionImageUrl'])
+        && gd.templateKey in ['pythagoras', 'circumcircle', 'midsegment', 'cosine', 'congruence', 'custom']
+        && gd.canvasWidth is number && gd.canvasWidth >= 200 && gd.canvasWidth <= 1200
+        && gd.canvasHeight is number && gd.canvasHeight >= 150 && gd.canvasHeight <= 1000
+        && gd.drawPrompt is string && gd.drawPrompt.size() <= 1000
+        && gd.teacherCorrectionText is string && gd.teacherCorrectionText.size() <= 4000
+        && isOptionalString(gd, 'teacherCorrectionImageUrl', 500)
+        && gd.baseShapes is list && gd.baseShapes.size() <= 50
+        && (gd.baseShapes.size() == 0 || gd.baseShapes[0] is map)
+        && gd.teacherCorrectionShapes is list && gd.teacherCorrectionShapes.size() <= 80
+        && (gd.teacherCorrectionShapes.size() == 0 || gd.teacherCorrectionShapes[0] is map);
+    }
+
+    // ==================== Validation Blueprints ====================
+    function isValidUser(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'role', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'classGroup', 'role', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid == userId && data.uid.size() <= 128
+        && data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 80
+        && isOptionalString(data, 'email', 160)
+        && isOptionalString(data, 'classGroup', 30)
+        && data.role in ['student', 'admin']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStudentProgress(data, userId) {
+      return data.keys().hasAll(['userId', 'studentName', 'completedCourseIds', 'completedExerciseIds', 'totalAttempts', 'bestOutOf20', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'studentName', 'completedCourseIds', 'completedExerciseIds', 'totalAttempts', 'bestOutOf20', 'updatedAt'])
+        && data.userId is string && data.userId == userId && data.userId.size() <= 128
+        && data.studentName is string && data.studentName.size() >= 2 && data.studentName.size() <= 80
+        && data.completedCourseIds is list && data.completedCourseIds.size() <= 100
+        && (data.completedCourseIds.size() == 0 || (data.completedCourseIds[0] is string && data.completedCourseIds[0].size() <= 128))
+        && data.completedExerciseIds is list && data.completedExerciseIds.size() <= 200
+        && (data.completedExerciseIds.size() == 0 || (data.completedExerciseIds[0] is string && data.completedExerciseIds[0].size() <= 128))
+        && data.totalAttempts is number && data.totalAttempts >= 0 && data.totalAttempts <= 10000
+        && data.bestOutOf20 is number && data.bestOutOf20 >= 0 && data.bestOutOf20 <= 20
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCourse(data) {
+      return data.keys().hasAll(['title', 'chapter', 'chapterOrder', 'summary', 'published', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'chapter', 'chapterOrder', 'summary', 'keyRules', 'videoUrl', 'pdfUrl', 'attachments', 'durationMin', 'published', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 160
+        && data.chapter is string && data.chapter.size() >= 2 && data.chapter.size() <= 100
+        && data.chapterOrder is number && data.chapterOrder >= 1 && data.chapterOrder <= 50
+        && data.summary is string && data.summary.size() <= 4000
+        && isOptionalString(data, 'keyRules', 4000)
+        && isOptionalString(data, 'videoUrl', 500)
+        && isOptionalString(data, 'pdfUrl', 500)
+        && (!('attachments' in data) || (data.attachments is list && data.attachments.size() <= 10 && (data.attachments.size() == 0 || data.attachments[0] is map)))
+        && (!('durationMin' in data) || (data.durationMin is number && data.durationMin >= 1 && data.durationMin <= 600))
+        && data.published is bool
+        && data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCourseAttachment(data) {
+      return data.keys().hasAll(['courseId', 'fileName', 'fileKind', 'mimeType', 'sizeBytes', 'dataUrl', 'published', 'createdBy', 'createdAt'])
+        && data.keys().hasOnly(['courseId', 'fileName', 'fileKind', 'mimeType', 'sizeBytes', 'dataUrl', 'chunkCount', 'published', 'createdBy', 'createdAt'])
+        && data.courseId is string && isValidId(data.courseId)
+        && data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 200
+        && data.fileKind in ['image', 'pdf', 'word', 'powerpoint', 'other']
+        && data.mimeType is string && data.mimeType.size() >= 1 && data.mimeType.size() <= 160
+        && data.sizeBytes is number && data.sizeBytes >= 1 && data.sizeBytes <= 6500000
+        && data.dataUrl is string && data.dataUrl.size() >= 5 && data.dataUrl.size() <= 980000
+        && (!('chunkCount' in data) || (data.chunkCount is number && data.chunkCount >= 1 && data.chunkCount <= 15))
+        && data.published is bool
+        && data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128
+        && data.createdAt is timestamp;
+    }
+
+    function isValidCourseAttachmentChunk(data) {
+      return data.keys().hasAll(['attachmentId', 'courseId', 'chunkIndex', 'dataChunk', 'published', 'createdBy', 'createdAt'])
+        && data.keys().hasOnly(['attachmentId', 'courseId', 'chunkIndex', 'dataChunk', 'published', 'createdBy', 'createdAt'])
+        && data.attachmentId is string && isValidId(data.attachmentId)
+        && data.courseId is string && isValidId(data.courseId)
+        && data.chunkIndex is number && data.chunkIndex >= 1 && data.chunkIndex <= 15
+        && data.dataChunk is string && data.dataChunk.size() >= 1 && data.dataChunk.size() <= 750000
+        && data.published is bool
+        && data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128
+        && data.createdAt is timestamp;
+    }
+
+    function isValidExercise(data) {
+      return data.keys().hasAll(['title', 'chapter', 'category', 'difficulty', 'durationMinutes', 'questions', 'published', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'chapter', 'category', 'difficulty', 'durationMinutes', 'description', 'attachmentUrl', 'geometryData', 'questions', 'published', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 160
+        && data.chapter is string && data.chapter.size() >= 2 && data.chapter.size() <= 100
+        && data.category in ['daily', 'devoir', 'exam', 'interactive', 'geometry']
+        && data.difficulty in ['easy', 'medium', 'hard']
+        && data.durationMinutes is number && data.durationMinutes >= 1 && data.durationMinutes <= 240
+        && isOptionalString(data, 'description', 2000)
+        && isOptionalString(data, 'attachmentUrl', 500)
+        && (!('geometryData' in data) || isValidGeometryData(data.geometryData))
+        && data.questions is list && data.questions.size() >= 1 && data.questions.size() <= 30
+        && data.questions[0] is map
+        && data.published is bool
+        && data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidEvent(data) {
+      return data.keys().hasAll(['title', 'eventType', 'eventDate', 'eventTime', 'description', 'published', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'eventType', 'eventDate', 'eventTime', 'description', 'link', 'published', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 160
+        && data.eventType in ['live', 'exam', 'devoir', 'announcement']
+        && data.eventDate is string && data.eventDate.size() >= 4 && data.eventDate.size() <= 20
+        && data.eventTime is string && data.eventTime.size() >= 2 && data.eventTime.size() <= 20
+        && data.description is string && data.description.size() <= 1500
+        && isOptionalString(data, 'link', 500)
+        && data.published is bool
+        && data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidScore(data) {
+      return data.keys().hasAll(['studentName', 'studentUid', 'exerciseId', 'exerciseTitle', 'chapter', 'score', 'total', 'outOf20', 'percentage', 'durationSeconds', 'isPublic', 'createdAt'])
+        && data.keys().hasOnly(['studentName', 'studentClass', 'studentUid', 'exerciseId', 'exerciseTitle', 'chapter', 'score', 'total', 'outOf20', 'percentage', 'durationSeconds', 'isPublic', 'studentDrawing', 'teacherNote', 'teacherCorrectionShapes', 'gradedStatus', 'createdAt'])
+        && data.studentName is string && data.studentName.size() >= 2 && data.studentName.size() <= 80
+        && isOptionalString(data, 'studentClass', 30)
+        && data.studentUid is string && data.studentUid.size() >= 1 && data.studentUid.size() <= 128
+        && data.exerciseId is string && isValidId(data.exerciseId)
+        && data.exerciseTitle is string && data.exerciseTitle.size() >= 2 && data.exerciseTitle.size() <= 160
+        && data.chapter is string && data.chapter.size() >= 2 && data.chapter.size() <= 100
+        && data.total is number && data.total > 0 && data.total <= 500
+        && data.score is number && data.score >= 0 && data.score <= data.total
+        && data.outOf20 is number && data.outOf20 >= 0 && data.outOf20 <= 20
+        && data.percentage is number && data.percentage >= 0 && data.percentage <= 100
+        && data.durationSeconds is number && data.durationSeconds >= 0 && data.durationSeconds <= 86400
+        && data.isPublic is bool
+        && (!('studentDrawing' in data) || (data.studentDrawing is list && data.studentDrawing.size() <= 80 && (data.studentDrawing.size() == 0 || data.studentDrawing[0] is map)))
+        && isOptionalString(data, 'teacherNote', 2000)
+        && (!('teacherCorrectionShapes' in data) || (data.teacherCorrectionShapes is list && data.teacherCorrectionShapes.size() <= 80 && (data.teacherCorrectionShapes.size() == 0 || data.teacherCorrectionShapes[0] is map)))
+        && (!('gradedStatus' in data) || data.gradedStatus in ['auto', 'reviewed'])
+        && data.createdAt is timestamp;
+    }
+
+    function isValidSetting(data) {
+      return data.keys().hasAll(['announcement', 'targetDate', 'targetLabel', 'updatedBy', 'updatedAt'])
+        && data.keys().hasOnly(['announcement', 'targetDate', 'targetLabel', 'updatedBy', 'updatedAt'])
+        && data.announcement is string && data.announcement.size() <= 600
+        && data.targetDate is string && data.targetDate.size() <= 20
+        && data.targetLabel is string && data.targetLabel.size() <= 120
+        && data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdmin(data) {
+      return data.keys().hasAll(['email', 'active', 'createdAt'])
+        && data.keys().hasOnly(['email', 'active', 'accessCode', 'createdAt'])
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.active is bool
+        && isOptionalString(data, 'accessCode', 80)
+        && data.createdAt is timestamp;
+    }
+
+    // ==================== Collection Rules ====================
+
+    // Users: strict owner/admin read (contains email PII); role cannot be self-escalated
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUser(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (incoming().role == 'student' || isAdmin());
+      allow update: if isValidId(userId)
+        && isValidUser(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(userId)
+            && incoming().role == existing().role
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'classGroup', 'email', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // Student Progress: owned by student or readable/writable by admin
+    match /studentProgress/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(userId)
+        && (isOwner(userId) || isAdmin())
+        && isValidStudentProgress(incoming(), userId)
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isValidStudentProgress(incoming(), userId)
+        && incoming().userId == existing().userId
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(userId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['studentName', 'completedCourseIds', 'completedExerciseIds', 'totalAttempts', 'bestOutOf20', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // Courses (Lessons)
+    match /courses/{courseId} {
+      allow get: if isValidId(courseId) && (existing().published == true || isAdmin());
+      allow list: if resource.data.published == true || isAdmin();
+      allow create: if isValidId(courseId)
+        && isAdmin()
+        && isValidCourse(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(courseId)
+        && isAdmin()
+        && isValidCourse(incoming())
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'chapter', 'chapterOrder', 'summary', 'keyRules', 'videoUrl', 'pdfUrl', 'attachments', 'durationMin', 'published', 'updatedAt']);
+      allow delete: if isValidId(courseId) && isAdmin();
+    }
+
+    // Course Attachments (JPG, PDF, DOCX, PPTX files attached to lessons)
+    match /courseAttachments/{attachmentId} {
+      allow get: if isValidId(attachmentId) && (existing().published == true || isAdmin());
+      allow list: if resource.data.published == true || isAdmin();
+      allow create: if isValidId(attachmentId)
+        && isAdmin()
+        && isValidCourseAttachment(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/courses/$(incoming().courseId));
+      allow update: if isValidId(attachmentId)
+        && isAdmin()
+        && isValidCourseAttachment(incoming())
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['published', 'courseId']);
+      allow delete: if isValidId(attachmentId) && isAdmin();
+    }
+
+    // Overflow chunks for large local lesson files (up to ~6.5MB)
+    match /courseAttachmentChunks/{chunkId} {
+      allow get: if isValidId(chunkId) && (existing().published == true || isAdmin());
+      allow list: if resource.data.published == true || isAdmin();
+      allow create: if isValidId(chunkId)
+        && isAdmin()
+        && isValidCourseAttachmentChunk(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/courseAttachments/$(incoming().attachmentId));
+      allow update: if isValidId(chunkId)
+        && isAdmin()
+        && isValidCourseAttachmentChunk(incoming())
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['published']);
+      allow delete: if isValidId(chunkId) && isAdmin();
+    }
+
+    // Exercises & Quizzes (including Interactive Geometry)
+    match /exercises/{exerciseId} {
+      allow get: if isValidId(exerciseId) && (existing().published == true || isAdmin());
+      allow list: if resource.data.published == true || isAdmin();
+      allow create: if isValidId(exerciseId)
+        && isAdmin()
+        && isValidExercise(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(exerciseId)
+        && isAdmin()
+        && isValidExercise(incoming())
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'chapter', 'category', 'difficulty', 'durationMinutes', 'description', 'attachmentUrl', 'geometryData', 'questions', 'published', 'updatedAt']);
+      allow delete: if isValidId(exerciseId) && isAdmin();
+    }
+
+    // Events & Schedule
+    match /events/{eventId} {
+      allow get: if isValidId(eventId) && (existing().published == true || isAdmin());
+      allow list: if resource.data.published == true || isAdmin();
+      allow create: if isValidId(eventId)
+        && isAdmin()
+        && isValidEvent(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(eventId)
+        && isAdmin()
+        && isValidEvent(incoming())
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'eventType', 'eventDate', 'eventTime', 'description', 'link', 'published', 'updatedAt']);
+      allow delete: if isValidId(eventId) && isAdmin();
+    }
+
+    // Student Scores (students submit scores/drawings; admins can review & draw/write corrections)
+    match /scores/{scoreId} {
+      allow get: if isValidId(scoreId) && (isAdmin() || (isSignedIn() && existing().studentUid == request.auth.uid) || existing().isPublic == true);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.studentUid == request.auth.uid) || resource.data.isPublic == true;
+      allow create: if isValidId(scoreId)
+        && isSignedIn()
+        && isValidScore(incoming())
+        && incoming().studentUid == request.auth.uid
+        && !('teacherNote' in incoming())
+        && !('teacherCorrectionShapes' in incoming())
+        && (!('gradedStatus' in incoming()) || incoming().gradedStatus == 'auto')
+        && incoming().createdAt == request.time;
+      allow update: if isValidId(scoreId)
+        && isAdmin()
+        && isValidScore(incoming())
+        && incoming().studentUid == existing().studentUid
+        && incoming().exerciseId == existing().exerciseId
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['teacherNote', 'teacherCorrectionShapes', 'gradedStatus', 'score', 'outOf20', 'percentage']);
+      allow delete: if isValidId(scoreId) && (isAdmin() || (isSignedIn() && existing().studentUid == request.auth.uid));
+    }
+
+    // Settings
+    match /settings/{settingId} {
+      allow get: if isValidId(settingId);
+      allow list: if resource.data.targetDate is string;
+      allow create: if isValidId(settingId)
+        && isAdmin()
+        && isValidSetting(incoming())
+        && incoming().updatedBy == request.auth.uid
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(settingId)
+        && isAdmin()
+        && isValidSetting(incoming())
+        && incoming().updatedBy == request.auth.uid
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['announcement', 'targetDate', 'targetLabel', 'updatedBy', 'updatedAt']);
+      allow delete: if isValidId(settingId) && isAdmin();
+    }
+
+    // Admins registry (bootstrapped admin OR any signed-in email submitting valid accessCode)
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(adminId)
+        && isValidAdmin(incoming())
+        && incoming().createdAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(adminId)
+            && incoming().active == true
+            && incoming().accessCode == 'منصة الرياضيات'
+            && request.auth.token.email is string
+            && incoming().email == request.auth.token.email
+          )
+        );
+      allow update: if isValidId(adminId)
+        && isValidAdmin(incoming())
+        && incoming().createdAt == existing().createdAt
+        && (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'active', 'accessCode'])) ||
+          (
+            isOwner(adminId)
+            && incoming().active == true
+            && incoming().accessCode == 'منصة الرياضيات'
+            && request.auth.token.email is string
+            && incoming().email == request.auth.token.email
+            && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'active', 'accessCode'])
+          )
+        );
+      allow delete: if isValidId(adminId) && isAdmin();
+    }
+  }
+}
