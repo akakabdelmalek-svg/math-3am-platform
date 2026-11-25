@@ -34,9 +34,14 @@ export function sanitizeDocId(raw: string): string {
 export function parseNumericInput(raw: string | number | null | undefined): number | null {
   if (raw === null || raw === undefined) return null;
   if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+  const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+  const persianDigits = '۰۱۲۳۴۵۶۷۸۹';
   const normalized = raw
     .trim()
+    .replace(/[٠-٩]/g, (d) => String(arabicDigits.indexOf(d)))
+    .replace(/[۰-۹]/g, (d) => String(persianDigits.indexOf(d)))
     .replace(/،/g, '.')
+    .replace(/٫/g, '.')
     .replace(/,/g, '.')
     .replace(/\s+/g, '');
   if (!normalized) return null;
@@ -62,6 +67,7 @@ export function normalizeTextAnswer(raw: string | number | null | undefined): st
     .replace(/[٠-٩]/g, (d) => String(arabicDigits.indexOf(d)))
     .replace(/[۰-۹]/g, (d) => String(persianDigits.indexOf(d)))
     .replace(/،/g, '.')
+    .replace(/٫/g, '.')
     .replace(/,/g, '.')
     .replace(/×/g, '*')
     .replace(/÷/g, '/')

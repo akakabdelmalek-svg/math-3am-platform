@@ -16,11 +16,16 @@ import {
 } from './mathPlatform.ts';
 import type { Course, Exercise, Question, ScoreRecord } from '../types/math.ts';
 
-test('parseNumericInput supports Arabic commas, decimals, and fractions', () => {
+test('parseNumericInput supports Arabic commas, Arabic/Persian digits, decimals, and fractions', () => {
   assert.equal(parseNumericInput('12,5'), 12.5);
   assert.equal(parseNumericInput('12،5'), 12.5);
   assert.equal(parseNumericInput('3/4'), 0.75);
   assert.equal(parseNumericInput(' -7.2 '), -7.2);
+  assert.equal(parseNumericInput('١٢'), 12);
+  assert.equal(parseNumericInput('٣/٤'), 0.75);
+  assert.equal(parseNumericInput('-٥،٥'), -5.5);
+  assert.equal(parseNumericInput('۱۲٫۵'), 12.5);
+  assert.equal(parseNumericInput('۱۲.۵'), 12.5);
   assert.equal(parseNumericInput('5/0'), null);
   assert.equal(parseNumericInput(''), null);
 });

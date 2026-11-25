@@ -316,7 +316,7 @@ export const SEED_EVENTS: Omit<EventItem, 'createdBy' | 'createdAt' | 'updatedAt
     eventDate: '2026-12-02',
     eventTime: '18:30',
     description:
-      'حل تمارين نموذجية في الهندسة وبراهين المثلث القائم والدائرة المحيطة به مع الأستاذ دقيش علي.',
+      'حل تمارين نموذجية في الهندسة وبراهين المثلث القائم والدائرة المحيطة به في حصة تفاعلية مباشرة.',
     link: '',
     published: true,
   },

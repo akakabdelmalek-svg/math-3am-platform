@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen,
   CheckCircle2,
@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { getCourseAttachment } from '../services/academyService';
 import type { Course, CourseAttachmentMeta, CourseAttachmentRecord, Exercise } from '../types/math';
-import { formatFileSizeArabic } from '../utils/lessonFileImport';
+import { dataUrlToObjectUrl, formatFileSizeArabic } from '../utils/lessonFileImport';
 import { CHAPTERS_3AM, filterCourses } from '../utils/mathPlatform';
 import { MathText } from './MathText';
 
@@ -51,8 +51,26 @@ export function CoursesView({
   const [chapter, setChapter] = useState('all');
   const [selectedId, setSelectedId] = useState<string | null>(initialCourseId || null);
   const [loadedAttachments, setLoadedAttachments] = useState<Record<string, CourseAttachmentRecord>>({});
+  const [objectUrls, setObjectUrls] = useState<Record<string, string>>({});
   const [loadingAttId, setLoadingAttId] = useState<string | null>(null);
   const [previewPdfId, setPreviewPdfId] = useState<string | null>(null);
+  const [attError, setAttError] = useState<string | null>(null);
+  const attemptedAttIdsRef = useRef<Set<string>>(new Set());
+  const objectUrlsRef = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    objectUrlsRef.current = objectUrls;
+  }, [objectUrls]);
+
+  useEffect(() => {
+    if (initialCourseId) setSelectedId(initialCourseId);
+  }, [initialCourseId]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(objectUrlsRef.current).forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, []);
 
   const filtered = useMemo(
     () => filterCourses(courses, { search, chapter }),
@@ -66,18 +84,24 @@ export function CoursesView({
 
   useEffect(() => {
     const atts = selectedCourse?.attachments || [];
-    const imageAtts = atts.filter((a) => a.fileKind === 'image' && !loadedAttachments[a.id]);
+    const imageAtts = atts.filter(
+      (a) =>
+        a.fileKind === 'image' &&
+        !loadedAttachments[a.id] &&
+        !attemptedAttIdsRef.current.has(a.id)
+    );
     if (imageAtts.length === 0) return;
     let cancelled = false;
     (async () => {
       for (const att of imageAtts) {
+        attemptedAttIdsRef.current.add(att.id);
         try {
           const rec = await getCourseAttachment(att.id);
           if (rec && !cancelled) {
             setLoadedAttachments((prev) => ({ ...prev, [att.id]: rec }));
           }
         } catch {
-          // ignore attachment fetch error
+          // ignore silent preload failure; user can still click download
         }
       }
     })();
@@ -87,14 +111,25 @@ export function CoursesView({
   }, [selectedCourse, loadedAttachments]);
 
   async function ensureAttachmentLoaded(att: CourseAttachmentMeta): Promise<CourseAttachmentRecord | null> {
+    setAttError(null);
     if (loadedAttachments[att.id]) return loadedAttachments[att.id];
     setLoadingAttId(att.id);
     try {
       const rec = await getCourseAttachment(att.id);
       if (rec) {
         setLoadedAttachments((prev) => ({ ...prev, [att.id]: rec }));
+        if (rec.dataUrl && !objectUrls[att.id]) {
+          const objUrl = dataUrlToObjectUrl(rec.dataUrl, rec.mimeType);
+          if (objUrl) {
+            setObjectUrls((prev) => ({ ...prev, [att.id]: objUrl }));
+          }
+        }
         return rec;
       }
+      setAttError(`لم يتم العثور على الملف "${att.fileName}".`);
+      return null;
+    } catch {
+      setAttError(`تعذر تحميل الملف "${att.fileName}" من قاعدة البيانات.`);
       return null;
     } finally {
       setLoadingAttId(null);
@@ -104,12 +139,16 @@ export function CoursesView({
   async function handleDownloadAttachment(att: CourseAttachmentMeta) {
     const rec = await ensureAttachmentLoaded(att);
     if (!rec?.dataUrl) return;
+    const objUrl = objectUrls[att.id] || dataUrlToObjectUrl(rec.dataUrl, rec.mimeType);
     const link = document.createElement('a');
-    link.href = rec.dataUrl;
+    link.href = objUrl || rec.dataUrl;
     link.download = rec.fileName || 'lesson-file';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    if (objUrl && !objectUrls[att.id]) {
+      setObjectUrls((prev) => ({ ...prev, [att.id]: objUrl }));
+    }
   }
 
   const relatedExercises = useMemo(() => {
@@ -258,7 +297,9 @@ export function CoursesView({
                 {isAdmin && onDeleteCourse && (
                   <button
                     type="button"
-                    onClick={() => onDeleteCourse(selectedCourse.id)}
+                    onClick={() => {
+                      void onDeleteCourse(selectedCourse.id).catch(() => undefined);
+                    }}
                     className="inline-flex items-center gap-1 rounded-xl bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -291,10 +332,16 @@ export function CoursesView({
           {selectedCourse.attachments && selectedCourse.attachments.length > 0 && (
             <div className="space-y-2.5">
               <h3 className="text-sm font-bold text-[#3E1591]">ملفات الدرس المرفقة</h3>
+              {attError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">
+                  {attError}
+                </div>
+              )}
               <div className="space-y-2.5">
                 {selectedCourse.attachments.map((att) => {
                   const loaded = loadedAttachments[att.id];
                   const isLoading = loadingAttId === att.id;
+                  const pdfSrc = objectUrls[att.id] || loaded?.dataUrl;
                   return (
                     <div
                       key={att.id}
@@ -320,8 +367,8 @@ export function CoursesView({
                                   setPreviewPdfId(null);
                                   return;
                                 }
-                                await ensureAttachmentLoaded(att);
-                                setPreviewPdfId(att.id);
+                                const rec = await ensureAttachmentLoaded(att);
+                                if (rec) setPreviewPdfId(att.id);
                               }}
                               className="btn btn-ghost !py-1.5 !px-3 !text-xs"
                             >
@@ -348,9 +395,9 @@ export function CoursesView({
                         />
                       )}
 
-                      {att.fileKind === 'pdf' && previewPdfId === att.id && loaded?.dataUrl && (
+                      {att.fileKind === 'pdf' && previewPdfId === att.id && pdfSrc && (
                         <iframe
-                          src={loaded.dataUrl}
+                          src={pdfSrc}
                           title={att.fileName}
                           className="h-96 w-full rounded-lg border border-[#E6DEF8] bg-white"
                         />

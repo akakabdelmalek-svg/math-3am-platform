@@ -1,8 +1,28 @@
 import JSZip from 'jszip';
 import type { CourseAttachmentKind, CourseAttachmentMeta } from '../types/math.ts';
 
-export const MAX_FIRESTORE_ATTACHMENT_BYTES = 6_500_000;
+export const MAX_FIRESTORE_ATTACHMENT_BYTES = 6_200_000;
 export const ATTACHMENT_CHUNK_CHARS = 650_000;
+
+export function dataUrlToObjectUrl(dataUrl: string, fallbackMime = 'application/octet-stream'): string | null {
+  try {
+    const commaIdx = dataUrl.indexOf(',');
+    if (commaIdx === -1 || !dataUrl.startsWith('data:')) return null;
+    const header = dataUrl.slice(5, commaIdx);
+    const body = dataUrl.slice(commaIdx + 1);
+    const mime = header.split(';')[0] || fallbackMime;
+    const isBase64 = header.includes(';base64');
+    const binary = isBase64 ? atob(body) : decodeURIComponent(body);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: mime });
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
+}
 
 export function splitDataUrlChunks(dataUrl: string, chunkChars = ATTACHMENT_CHUNK_CHARS): string[] {
   if (!dataUrl) return [];
@@ -242,7 +262,7 @@ export async function processLessonImportFile(file: File): Promise<ImportedLesso
     fileKind,
     extractedText: extractedText || undefined,
     warning: extractedText
-      ? `تم استخراج النص من "${file.name}" إلى ملخص الدرس، لكن حجم الملف (${formatFileSizeArabic(file.size)}) يتجاوز الحد الأقصى (6.5 م.ب) — يمكنك إرفاق رابطه عبر Google Drive.`
-      : `حجم الملف "${file.name}" (${formatFileSizeArabic(file.size)}) يتجاوز الحد الأقصى (6.5 م.ب). يمكنك ضغطه أو إرفاق رابطه في خانة PDF / Drive.`,
+      ? `تم استخراج النص من "${file.name}" إلى ملخص الدرس، لكن حجم الملف (${formatFileSizeArabic(file.size)}) يتجاوز الحد الأقصى (6.2 م.ب) — يمكنك إرفاق رابطه عبر Google Drive.`
+      : `حجم الملف "${file.name}" (${formatFileSizeArabic(file.size)}) يتجاوز الحد الأقصى (6.2 م.ب). يمكنك ضغطه أو إرفاق رابطه في خانة PDF / Drive.`,
   };
 }

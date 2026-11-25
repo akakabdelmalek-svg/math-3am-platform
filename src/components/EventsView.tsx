@@ -67,7 +67,9 @@ export function EventsView({ events, isAdmin, onOpenAdminEvents, onDeleteEvent }
                     {isAdmin && onDeleteEvent && (
                       <button
                         type="button"
-                        onClick={() => onDeleteEvent(evt.id)}
+                        onClick={() => {
+                          void onDeleteEvent(evt.id).catch(() => undefined);
+                        }}
                         aria-label={`حذف حدث ${evt.title}`}
                         className="flex items-center gap-1 rounded-lg bg-rose-50 px-2 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100"
                       >

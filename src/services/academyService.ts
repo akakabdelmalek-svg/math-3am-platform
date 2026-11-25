@@ -80,19 +80,20 @@ export async function activateAdminWithCode(user: User, rawCode: string): Promis
     return false;
   }
 
+  const normalizedEmail = user.email.trim().toLowerCase().slice(0, 160);
   const path = `admins/${user.uid}`;
   const adminRef = doc(db, 'admins', user.uid);
   try {
     const snap = await getDoc(adminRef);
     if (snap.exists()) {
       await updateDoc(adminRef, {
-        email: user.email.slice(0, 160),
+        email: normalizedEmail,
         active: true,
         accessCode: 'منصة الرياضيات',
       });
     } else {
       await setDoc(adminRef, {
-        email: user.email.slice(0, 160),
+        email: normalizedEmail,
         active: true,
         accessCode: 'منصة الرياضيات',
         createdAt: serverTimestamp(),
@@ -190,9 +191,27 @@ export async function ensureStudentProgress(
   }
 }
 
+function forwardSnapshotError(
+  error: unknown,
+  op: OperationType,
+  path: string,
+  onError?: (err: Error) => void
+) {
+  try {
+    handleFirestoreError(error, op, path);
+  } catch (err) {
+    if (onError) {
+      onError(err instanceof Error ? err : new Error(String(err)));
+    } else {
+      throw err;
+    }
+  }
+}
+
 export function subscribeCourses(
   isAdmin: boolean,
-  onData: (items: Course[]) => void
+  onData: (items: Course[]) => void,
+  onError?: (err: Error) => void
 ): Unsubscribe {
   const path = 'courses';
   const q = isAdmin
@@ -207,13 +226,14 @@ export function subscribeCourses(
         .sort((a, b) => (a.chapterOrder || 0) - (b.chapterOrder || 0));
       onData(list);
     },
-    (error) => handleFirestoreError(error, OperationType.LIST, path)
+    (error) => forwardSnapshotError(error, OperationType.LIST, path, onError)
   );
 }
 
 export function subscribeExercises(
   isAdmin: boolean,
-  onData: (items: Exercise[]) => void
+  onData: (items: Exercise[]) => void,
+  onError?: (err: Error) => void
 ): Unsubscribe {
   const path = 'exercises';
   const q = isAdmin
@@ -228,13 +248,14 @@ export function subscribeExercises(
         .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
       onData(list);
     },
-    (error) => handleFirestoreError(error, OperationType.LIST, path)
+    (error) => forwardSnapshotError(error, OperationType.LIST, path, onError)
   );
 }
 
 export function subscribeEvents(
   isAdmin: boolean,
-  onData: (items: EventItem[]) => void
+  onData: (items: EventItem[]) => void,
+  onError?: (err: Error) => void
 ): Unsubscribe {
   const path = 'events';
   const q = isAdmin
@@ -249,11 +270,14 @@ export function subscribeEvents(
         .sort((a, b) => a.eventDate.localeCompare(b.eventDate));
       onData(list);
     },
-    (error) => handleFirestoreError(error, OperationType.LIST, path)
+    (error) => forwardSnapshotError(error, OperationType.LIST, path, onError)
   );
 }
 
-export function subscribePublicScores(onData: (items: ScoreRecord[]) => void): Unsubscribe {
+export function subscribePublicScores(
+  onData: (items: ScoreRecord[]) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
   const path = 'scores';
   const q = query(collection(db, path), where('isPublic', '==', true));
   return onSnapshot(
@@ -267,13 +291,14 @@ export function subscribePublicScores(onData: (items: ScoreRecord[]) => void): U
         .sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
       onData(list);
     },
-    (error) => handleFirestoreError(error, OperationType.LIST, path)
+    (error) => forwardSnapshotError(error, OperationType.LIST, path, onError)
   );
 }
 
 export function subscribeStudentScores(
   uid: string,
-  onData: (items: ScoreRecord[]) => void
+  onData: (items: ScoreRecord[]) => void,
+  onError?: (err: Error) => void
 ): Unsubscribe {
   const path = 'scores';
   const q = query(collection(db, path), where('studentUid', '==', uid));
@@ -288,11 +313,14 @@ export function subscribeStudentScores(
         .sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
       onData(list);
     },
-    (error) => handleFirestoreError(error, OperationType.LIST, path)
+    (error) => forwardSnapshotError(error, OperationType.LIST, path, onError)
   );
 }
 
-export function subscribeAllScoresAdmin(onData: (items: ScoreRecord[]) => void): Unsubscribe {
+export function subscribeAllScoresAdmin(
+  onData: (items: ScoreRecord[]) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
   const path = 'scores';
   return onSnapshot(
     collection(db, path),
@@ -305,13 +333,14 @@ export function subscribeAllScoresAdmin(onData: (items: ScoreRecord[]) => void):
         .sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
       onData(list);
     },
-    (error) => handleFirestoreError(error, OperationType.LIST, path)
+    (error) => forwardSnapshotError(error, OperationType.LIST, path, onError)
   );
 }
 
 export function subscribeStudentProgress(
   uid: string,
-  onData: (progress: StudentProgress | null) => void
+  onData: (progress: StudentProgress | null) => void,
+  onError?: (err: Error) => void
 ): Unsubscribe {
   const path = `studentProgress/${uid}`;
   return onSnapshot(
@@ -319,12 +348,13 @@ export function subscribeStudentProgress(
     (snap) => {
       onData(snap.exists() ? (snap.data() as StudentProgress) : null);
     },
-    (error) => handleFirestoreError(error, OperationType.GET, path)
+    (error) => forwardSnapshotError(error, OperationType.GET, path, onError)
   );
 }
 
 export function subscribeSettings(
-  onData: (settings: AcademySettings, existsInDb: boolean) => void
+  onData: (settings: AcademySettings, existsInDb: boolean) => void,
+  onError?: (err: Error) => void
 ): Unsubscribe {
   const path = 'settings/main';
   return onSnapshot(
@@ -336,7 +366,7 @@ export function subscribeSettings(
         onData(DEFAULT_SETTINGS, false);
       }
     },
-    (error) => handleFirestoreError(error, OperationType.GET, path)
+    (error) => forwardSnapshotError(error, OperationType.GET, path, onError)
   );
 }
 

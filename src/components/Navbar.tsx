@@ -59,7 +59,7 @@ export function Navbar({
           onClick={() => onNavigate('home')}
           className="ttl text-right bg-transparent border-0 text-white cursor-pointer p-0"
         >
-          <h1>أكاديمية الأستاذ دقيش علي</h1>
+          <h1>أكاديمية الرياضيات</h1>
           <p>رياضيات — السنة الثالثة متوسط (3AM)</p>
         </button>
 

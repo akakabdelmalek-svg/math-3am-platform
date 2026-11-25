@@ -166,6 +166,7 @@ export function AdminDashboardView({
   const [exAttachmentUrl, setExAttachmentUrl] = useState('');
   const [exPublished, setExPublished] = useState(true);
   const [exQuestions, setExQuestions] = useState<Question[]>([createBlankQuestion(1)]);
+  const [numberDrafts, setNumberDrafts] = useState<Record<string, string>>({});
 
   // Geometry builder state
   const [geomTemplate, setGeomTemplate] =
@@ -204,6 +205,12 @@ export function AdminDashboardView({
   const [setTargetDate, setSetTargetDate] = useState(settings.targetDate);
   const [setTargetLabel, setSetTargetLabel] = useState(settings.targetLabel);
 
+  useEffect(() => {
+    setSetAnnouncement(settings.announcement);
+    setSetTargetDate(settings.targetDate);
+    setSetTargetLabel(settings.targetLabel);
+  }, [settings]);
+
   // Scores & Teacher Correction review state
   const [scoreSearch, setScoreSearch] = useState('');
   const [reviewingScoreId, setReviewingScoreId] = useState<string | null>(null);
@@ -222,6 +229,7 @@ export function AdminDashboardView({
     setExAttachmentUrl('');
     setExPublished(true);
     setExQuestions([createBlankQuestion(1)]);
+    setNumberDrafts({});
     setExGeometryData(null);
     setGeomEditLayer('base');
   }
@@ -237,6 +245,7 @@ export function AdminDashboardView({
     setExAttachmentUrl(ex.attachmentUrl || '');
     setExPublished(ex.published);
     setExQuestions(ex.questions.length > 0 ? ex.questions : [createBlankQuestion(1)]);
+    setNumberDrafts({});
     setExGeometryData(
       ex.geometryData
         ? ex.geometryData
@@ -260,6 +269,7 @@ export function AdminDashboardView({
     setExDesc(generated.description);
     setExGeometryData(generated.geometryData);
     setExQuestions(generated.questions);
+    setNumberDrafts({});
     setGeomEditLayer('correction');
     setStatusMsg('تم توليد تمرين هندسة تفاعلي مع شكل المعطيات والتصحيح النموذجي — يمكنك تعديله أو حفظه مباشرة.');
   }
@@ -326,8 +336,8 @@ export function AdminDashboardView({
     e.preventDefault();
     setErrorMsg(null);
     setStatusMsg(null);
-    if (!exTitle.trim()) {
-      setErrorMsg('يرجى إدخال عنوان التمرين.');
+    if (exTitle.trim().length < 2) {
+      setErrorMsg('يرجى إدخال عنوان التمرين (حرفان على الأقل).');
       return;
     }
     const cleanQuestions = exQuestions.filter((q) => q.prompt.trim().length > 0);
@@ -336,6 +346,7 @@ export function AdminDashboardView({
       return;
     }
 
+    const validatedQuestions: Question[] = [];
     for (let i = 0; i < cleanQuestions.length; i++) {
       const q = cleanQuestions[i];
       if (q.type === 'text' && !(q.correctText || '').trim()) {
@@ -348,10 +359,22 @@ export function AdminDashboardView({
           setErrorMsg(`يرجى كتابة نص الإجابة الصحيحة في اختيارات السؤال ${i + 1}.`);
           return;
         }
-      }
-      if (q.type === 'number' && !Number.isFinite(Number(q.correctNumber))) {
-        setErrorMsg(`يرجى كتابة الإجابة العددية الصحيحة للسؤال ${i + 1}.`);
-        return;
+        validatedQuestions.push(q);
+      } else if (q.type === 'number') {
+        const draftRaw = numberDrafts[q.id];
+        const resolvedNum =
+          draftRaw !== undefined
+            ? parseNumericInput(draftRaw)
+            : typeof q.correctNumber === 'number' && Number.isFinite(q.correctNumber)
+              ? q.correctNumber
+              : null;
+        if (resolvedNum === null) {
+          setErrorMsg(`يرجى كتابة إجابة عددية صحيحة للسؤال ${i + 1} (مثال: 12 أو 3/4 أو -5.5).`);
+          return;
+        }
+        validatedQuestions.push({ ...q, correctNumber: resolvedNum });
+      } else {
+        validatedQuestions.push(q);
       }
     }
 
@@ -368,7 +391,7 @@ export function AdminDashboardView({
         attachmentUrl: exAttachmentUrl,
         geometryData:
           exCategory === 'geometry' ? exGeometryData || createBlankGeometryData() : undefined,
-        questions: cleanQuestions,
+        questions: validatedQuestions,
         published: exPublished,
       });
       setStatusMsg('تم حفظ التمرين وإجاباته الصحيحة في Firebase Firestore بنجاح.');
@@ -485,8 +508,8 @@ export function AdminDashboardView({
     e.preventDefault();
     setErrorMsg(null);
     setStatusMsg(null);
-    if (!cTitle.trim()) {
-      setErrorMsg('يرجى إدخال عنوان الدرس.');
+    if (cTitle.trim().length < 2) {
+      setErrorMsg('يرجى إدخال عنوان الدرس (حرفان على الأقل).');
       return;
     }
     const effectiveSummary =
@@ -588,8 +611,12 @@ export function AdminDashboardView({
     e.preventDefault();
     setErrorMsg(null);
     setStatusMsg(null);
-    if (!evTitle.trim() || !evDesc.trim()) {
-      setErrorMsg('يرجى إدخال عنوان الحدث وتفاصيله.');
+    if (evTitle.trim().length < 2 || !evDesc.trim()) {
+      setErrorMsg('يرجى إدخال عنوان الحدث (حرفان على الأقل) وتفاصيله.');
+      return;
+    }
+    if (evDate.trim().length < 4 || evTime.trim().length < 2) {
+      setErrorMsg('يرجى تحديد تاريخ وتوقيت صالحين للحدث.');
       return;
     }
     setBusy(true);
@@ -617,6 +644,7 @@ export function AdminDashboardView({
     e.preventDefault();
     setBusy(true);
     setStatusMsg(null);
+    setErrorMsg(null);
     try {
       await onSaveSettings({
         announcement: setAnnouncement,
@@ -624,6 +652,8 @@ export function AdminDashboardView({
         targetLabel: setTargetLabel,
       });
       setStatusMsg('تم تحديث إعدادات المنصة في Firebase.');
+    } catch {
+      setErrorMsg('تعذر حفظ الإعدادات في قاعدة البيانات.');
     } finally {
       setBusy(false);
     }
@@ -648,6 +678,7 @@ export function AdminDashboardView({
   async function handleSaveScoreReview(sc: ScoreRecord) {
     setBusy(true);
     setStatusMsg(null);
+    setErrorMsg(null);
     try {
       const parsedGrade = Number(reviewOutOf20);
       await onSaveTeacherScoreCorrection(sc.id, {
@@ -658,6 +689,8 @@ export function AdminDashboardView({
       });
       setStatusMsg(`تم حفظ تصحيح الأستاذ لعمل التلميذ ${sc.studentName}.`);
       setReviewingScoreId(null);
+    } catch {
+      setErrorMsg('تعذر حفظ التصحيح، يرجى المحاولة مرة أخرى.');
     } finally {
       setBusy(false);
     }
@@ -704,9 +737,13 @@ export function AdminDashboardView({
           disabled={busy}
           onClick={async () => {
             setBusy(true);
+            setErrorMsg(null);
+            setStatusMsg(null);
             try {
               await onSeedCurriculum();
               setStatusMsg('تم التحقق من المنهاج الافتراضي ومزامنته مع Firestore.');
+            } catch {
+              setErrorMsg('تعذر مزامنة المنهاج الافتراضي مع قاعدة البيانات.');
             } finally {
               setBusy(false);
             }
@@ -1299,19 +1336,24 @@ export function AdminDashboardView({
                         <input
                           type="text"
                           dir="ltr"
-                          value={q.correctNumber ?? 0}
+                          value={
+                            numberDrafts[q.id] !== undefined
+                              ? numberDrafts[q.id]
+                              : q.correctNumber !== undefined
+                                ? String(q.correctNumber)
+                                : ''
+                          }
                           onChange={(e) => {
-                            const parsed = parseNumericInput(e.target.value);
-                            setExQuestions((prev) =>
-                              prev.map((item, idx) =>
-                                idx === qIdx
-                                  ? {
-                                      ...item,
-                                      correctNumber: parsed !== null ? parsed : Number(e.target.value) || 0,
-                                    }
-                                  : item
-                              )
-                            );
+                            const raw = e.target.value;
+                            setNumberDrafts((prev) => ({ ...prev, [q.id]: raw }));
+                            const parsed = parseNumericInput(raw);
+                            if (parsed !== null) {
+                              setExQuestions((prev) =>
+                                prev.map((item, idx) =>
+                                  idx === qIdx ? { ...item, correctNumber: parsed } : item
+                                )
+                              );
+                            }
                           }}
                           placeholder="مثال: 12 أو 3/4 أو -5.5"
                           data-testid={`question-correct-number-${qIdx}`}
@@ -1470,7 +1512,7 @@ export function AdminDashboardView({
                     استيراد ملفات محلية من جهازك (JPG / Word DOCX / PDF / PowerPoint)
                   </div>
                   <p className="m-0 text-[11px] text-[#6E6390]">
-                    اختر ملفات من حاسوبك أو هاتفك (حتى 6.5 MB للملف): تُضغط الصور تلقائياً ويُستخرج نص Word و PowerPoint إلى الملخص مع إتاحة المعاينة والتحميل للتلاميذ.
+                    اختر ملفات من حاسوبك أو هاتفك (حتى 6.2 MB للملف): تُضغط الصور تلقائياً ويُستخرج نص Word و PowerPoint إلى الملخص مع إتاحة المعاينة والتحميل للتلاميذ.
                   </p>
                 </div>
                 <label className="btn btn-main cursor-pointer !py-2 !px-3.5 !text-xs">

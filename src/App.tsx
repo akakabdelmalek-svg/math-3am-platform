@@ -81,6 +81,7 @@ export default function App() {
   const [adminInitialTab, setAdminInitialTab] = useState<'exercises' | 'courses' | 'events' | 'scores' | 'settings'>('exercises');
   const [toast, setToast] = useState<{ text: string; kind: 'ok' | 'err' } | null>(null);
   const seededOnceRef = useRef(false);
+  const authFlowActiveRef = useRef(false);
 
   function showToast(text: string, kind: 'ok' | 'err' = 'ok') {
     setToast({ text, kind });
@@ -99,6 +100,10 @@ export default function App() {
         setStudentScores([]);
         setStudentProgress(null);
         setAdminScores([]);
+        return;
+      }
+
+      if (authFlowActiveRef.current) {
         return;
       }
 
@@ -125,15 +130,18 @@ export default function App() {
 
   // Subscribe to public/admin Firestore collections
   useEffect(() => {
+    const handleSubErr = () => {
+      showToast('تعذر مزامنة البيانات مع قاعدة البيانات.', 'err');
+    };
     const unsubs = [
-      subscribeCourses(isAdmin, setDbCourses),
-      subscribeExercises(isAdmin, setDbExercises),
-      subscribeEvents(isAdmin, setDbEvents),
-      subscribePublicScores(setPublicScores),
+      subscribeCourses(isAdmin, setDbCourses, handleSubErr),
+      subscribeExercises(isAdmin, setDbExercises, handleSubErr),
+      subscribeEvents(isAdmin, setDbEvents, handleSubErr),
+      subscribePublicScores(setPublicScores, handleSubErr),
       subscribeSettings((nextSettings, existsInDb) => {
         setSettings(nextSettings);
         setSettingsExistsInDb(existsInDb);
-      }),
+      }, handleSubErr),
     ];
     return () => unsubs.forEach((u) => u());
   }, [isAdmin]);
@@ -141,12 +149,15 @@ export default function App() {
   // Subscribe to user-specific scores & progress or admin all-scores
   useEffect(() => {
     if (!firebaseUser) return;
+    const handleSubErr = () => {
+      showToast('تعذر تحميل سجلات النقاط من قاعدة البيانات.', 'err');
+    };
     if (isAdmin) {
-      const unsub = subscribeAllScoresAdmin(setAdminScores);
+      const unsub = subscribeAllScoresAdmin(setAdminScores, handleSubErr);
       return () => unsub();
     }
-    const unsubScores = subscribeStudentScores(firebaseUser.uid, setStudentScores);
-    const unsubProg = subscribeStudentProgress(firebaseUser.uid, setStudentProgress);
+    const unsubScores = subscribeStudentScores(firebaseUser.uid, setStudentScores, handleSubErr);
+    const unsubProg = subscribeStudentProgress(firebaseUser.uid, setStudentProgress, handleSubErr);
     return () => {
       unsubScores();
       unsubProg();
@@ -160,19 +171,8 @@ export default function App() {
   }, [dbCourses, settingsExistsInDb]);
 
   const exercises = useMemo<Exercise[]>(() => {
-    if (dbExercises.length === 0) {
-      if (settingsExistsInDb) return [];
-      return SEED_EXERCISES.map((ex) => ({ ...ex, createdBy: 'curriculum' }));
-    }
-    const hasDbGeometry = dbExercises.some(
-      (e) => e.category === 'geometry' || Boolean(e.geometryData)
-    );
-    if (hasDbGeometry) return dbExercises;
-    const existingIds = new Set(dbExercises.map((e) => e.id));
-    const starterGeometry = SEED_EXERCISES.filter(
-      (e) => e.category === 'geometry' && !existingIds.has(e.id)
-    ).map((ex) => ({ ...ex, createdBy: 'curriculum' }));
-    return [...starterGeometry, ...dbExercises];
+    if (settingsExistsInDb || dbExercises.length > 0) return dbExercises;
+    return SEED_EXERCISES.map((ex) => ({ ...ex, createdBy: 'curriculum' }));
   }, [dbExercises, settingsExistsInDb]);
 
   const events = useMemo<EventItem[]>(() => {
@@ -263,8 +263,9 @@ export default function App() {
         studentDrawing,
       });
       showToast(`تم حفظ نتيجتك (${result.outOf20}/20) في قاعدة البيانات ولوحتك!`);
-    } catch {
+    } catch (err) {
       showToast('تعذر حفظ النتيجة في قاعدة البيانات.', 'err');
+      throw err;
     }
   }
 
@@ -350,8 +351,13 @@ export default function App() {
               setView('admin');
             }}
             onDeleteCourse={async (courseId) => {
-              await deleteCourse(courseId);
-              showToast('تم حذف الدرس من المنصة.');
+              try {
+                await deleteCourse(courseId);
+                showToast('تم حذف الدرس من المنصة.');
+              } catch (err) {
+                showToast('تعذر حذف الدرس من قاعدة البيانات.', 'err');
+                throw err;
+              }
             }}
             initialCourseId={selectedCourseId}
           />
@@ -373,8 +379,13 @@ export default function App() {
               setView('admin');
             }}
             onDeleteExercise={async (exerciseId) => {
-              await deleteExercise(exerciseId);
-              showToast('تم حذف التمرين من المنصة.');
+              try {
+                await deleteExercise(exerciseId);
+                showToast('تم حذف التمرين من المنصة.');
+              } catch (err) {
+                showToast('تعذر حذف التمرين من قاعدة البيانات.', 'err');
+                throw err;
+              }
             }}
           />
         )}
@@ -410,8 +421,13 @@ export default function App() {
               setView('admin');
             }}
             onDeleteEvent={async (eventId) => {
-              await deleteEvent(eventId);
-              showToast('تم حذف الحدث من المنصة.');
+              try {
+                await deleteEvent(eventId);
+                showToast('تم حذف الحدث من المنصة.');
+              } catch (err) {
+                showToast('تعذر حذف الحدث من قاعدة البيانات.', 'err');
+                throw err;
+              }
             }}
           />
         )}
@@ -462,10 +478,13 @@ export default function App() {
           mode={authModalMode}
           onClose={() => setAuthModalMode(null)}
           onSwitchMode={setAuthModalMode}
+          onAuthFlowChange={(active) => {
+            authFlowActiveRef.current = active;
+          }}
           onSuccess={async (role) => {
             setAuthModalMode(null);
+            const current = auth.currentUser;
             if (role === 'admin') {
-              const current = auth.currentUser;
               if (current) {
                 const adminOk = await checkAdminAccess(current);
                 setIsAdmin(adminOk);
@@ -479,6 +498,17 @@ export default function App() {
               setView('admin');
               showToast('مرحباً أستاذ! تم فتح لوحة الإدارة.');
             } else {
+              if (current) {
+                const adminOk = await checkAdminAccess(current);
+                setIsAdmin(adminOk);
+                const profile = await ensureUserProfile(current, {
+                  role: adminOk ? 'admin' : 'student',
+                });
+                setUserProfile(profile);
+                if (!adminOk) {
+                  await ensureStudentProgress(current, profile.displayName);
+                }
+              }
               showToast('مرحباً بك! تم تسجيل الدخول لحفظ تقدمك ونتائجك.');
             }
           }}

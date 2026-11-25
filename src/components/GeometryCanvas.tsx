@@ -1,4 +1,4 @@
-import { useRef, useState, type PointerEvent } from 'react';
+import { useId, useRef, useState, type PointerEvent } from 'react';
 import {
   Circle as CircleIcon,
   Compass,
@@ -204,6 +204,9 @@ export function GeometryCanvas({
   testId = 'geometry-canvas',
 }: GeometryCanvasProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const patternPrefix = useId().replace(/:/g, '_');
+  const smallGridId = `mathGridSmall_${patternPrefix}`;
+  const largeGridId = `mathGridLarge_${patternPrefix}`;
   const [tool, setTool] = useState<GeometryTool>('segment');
   const [draftShape, setDraftShape] = useState<GeometryShape | null>(null);
   const [snapPoints, setSnapPoints] = useState<{ x: number; y: number } | null>(null);
@@ -435,17 +438,17 @@ export function GeometryCanvas({
           onPointerUp={handlePointerUp}
         >
           <defs>
-            <pattern id="mathGridSmall" width="20" height="20" patternUnits="userSpaceOnUse">
+            <pattern id={smallGridId} width="20" height="20" patternUnits="userSpaceOnUse">
               <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(109,40,217,0.09)" strokeWidth="1" />
             </pattern>
-            <pattern id="mathGridLarge" width="100" height="100" patternUnits="userSpaceOnUse">
-              <rect width="100" height="100" fill="url(#mathGridSmall)" />
+            <pattern id={largeGridId} width="100" height="100" patternUnits="userSpaceOnUse">
+              <rect width="100" height="100" fill={`url(#${smallGridId})`} />
               <path d="M 100 0 L 0 0 0 100" fill="none" stroke="rgba(109,40,217,0.16)" strokeWidth="1.2" />
             </pattern>
           </defs>
 
           <rect x={0} y={0} width={width} height={height} fill="#FAF8FF" />
-          <rect x={0} y={0} width={width} height={height} fill="url(#mathGridLarge)" />
+          <rect x={0} y={0} width={width} height={height} fill={`url(#${largeGridId})`} />
 
           {/* Base problem figure */}
           {baseShapes.map((s, idx) => renderShapeSvg(s, 'base', idx))}

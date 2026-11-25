@@ -137,6 +137,8 @@ export function ExercisesView({
           studentDrawing.length > 0 ? studentDrawing : undefined
         );
         setScoreSaved(true);
+      } catch {
+        setScoreSaved(false);
       } finally {
         setSavingScore(false);
       }
@@ -158,6 +160,8 @@ export function ExercisesView({
         studentDrawing.length > 0 ? studentDrawing : undefined
       );
       setScoreSaved(true);
+    } catch {
+      setScoreSaved(false);
     } finally {
       setSavingScore(false);
     }
@@ -187,8 +191,12 @@ export function ExercisesView({
               <button
                 type="button"
                 onClick={async () => {
-                  await onDeleteExercise(activeExercise.id);
-                  onSelectExercise(null);
+                  try {
+                    await onDeleteExercise(activeExercise.id);
+                    onSelectExercise(null);
+                  } catch {
+                    // parent shows error toast
+                  }
                 }}
                 className="flex items-center gap-1 rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100"
               >

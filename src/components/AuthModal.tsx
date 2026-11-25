@@ -30,9 +30,16 @@ interface AuthModalProps {
   onClose: () => void;
   onSuccess: (role: 'student' | 'admin') => void | Promise<void>;
   onSwitchMode: (mode: AuthModalMode) => void;
+  onAuthFlowChange?: (active: boolean) => void;
 }
 
-export function AuthModal({ mode, onClose, onSuccess, onSwitchMode }: AuthModalProps) {
+export function AuthModal({
+  mode,
+  onClose,
+  onSuccess,
+  onSwitchMode,
+  onAuthFlowChange,
+}: AuthModalProps) {
   const [authAction, setAuthAction] = useState<'login' | 'register'>('login');
   const [adminCode, setAdminCode] = useState('');
   const [adminCodeVerified, setAdminCodeVerified] = useState(false);
@@ -109,6 +116,7 @@ export function AuthModal({ mode, onClose, onSuccess, onSwitchMode }: AuthModalP
     }
 
     setBusy(true);
+    onAuthFlowChange?.(true);
     try {
       if (isAdminFlow) {
         const cred =
@@ -148,6 +156,7 @@ export function AuthModal({ mode, onClose, onSuccess, onSwitchMode }: AuthModalP
     } catch (err) {
       setErrorMsg(mapAuthError(err));
     } finally {
+      onAuthFlowChange?.(false);
       setBusy(false);
     }
   }
@@ -160,6 +169,7 @@ export function AuthModal({ mode, onClose, onSuccess, onSwitchMode }: AuthModalP
       return;
     }
     setBusy(true);
+    onAuthFlowChange?.(true);
     try {
       const cred = await signInWithPopup(auth, googleProvider);
       if (isAdminFlow) {
@@ -178,6 +188,7 @@ export function AuthModal({ mode, onClose, onSuccess, onSwitchMode }: AuthModalP
     } catch (err) {
       setErrorMsg(mapAuthError(err));
     } finally {
+      onAuthFlowChange?.(false);
       setBusy(false);
     }
   }
@@ -424,7 +435,7 @@ export function AuthModal({ mode, onClose, onSuccess, onSwitchMode }: AuthModalP
                           type="text"
                           value={displayName}
                           onChange={(e) => setDisplayName(e.target.value)}
-                          placeholder={isAdminFlow ? 'الأستاذ دقيش علي' : 'مثال: أمينة بن علي'}
+                          placeholder={isAdminFlow ? 'مثال: أستاذ الرياضيات' : 'مثال: أمينة بن علي'}
                           className="w-full rounded-xl border border-[#D6C9F3] py-2 pr-9 pl-3 text-sm focus:border-[#6D28D9] focus:outline-none"
                         />
                       </div>
