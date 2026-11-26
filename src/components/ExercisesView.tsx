@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type {
   AnswerMap,
+  ClassLevel,
   DifficultyLevel,
   Exercise,
   ExerciseCategory,
@@ -20,11 +21,12 @@ import type {
   GradeResult,
 } from '../types/math';
 import { isGeometryExercise } from '../utils/geometryGenerator';
-import { CHAPTERS_3AM, filterExercises, gradeExercise } from '../utils/mathPlatform';
+import { filterExercises, getChaptersForLevel, gradeExercise } from '../utils/mathPlatform';
 import { GeometryCanvas } from './GeometryCanvas';
 import { MathText } from './MathText';
 
 interface ExercisesViewProps {
+  activeLevel: ClassLevel;
   exercises: Exercise[];
   completedExerciseIds: string[];
   activeExercise: Exercise | null;
@@ -66,6 +68,7 @@ const DIFFICULTY_LABELS: Record<DifficultyLevel, string> = {
 };
 
 export function ExercisesView({
+  activeLevel,
   exercises,
   completedExerciseIds,
   activeExercise,
@@ -78,6 +81,7 @@ export function ExercisesView({
   onOpenAdminExercises,
   onDeleteExercise,
 }: ExercisesViewProps) {
+  const levelChapters = useMemo(() => getChaptersForLevel(activeLevel), [activeLevel]);
   const [search, setSearch] = useState('');
   const [chapter, setChapter] = useState('all');
   const [category, setCategory] = useState<ExerciseCategory | 'all'>(initialCategory);
@@ -94,6 +98,11 @@ export function ExercisesView({
   useEffect(() => {
     setCategory(initialCategory);
   }, [initialCategory]);
+
+  useEffect(() => {
+    setChapter('all');
+    setSearch('');
+  }, [activeLevel]);
 
   const completedSet = useMemo(() => new Set(completedExerciseIds), [completedExerciseIds]);
 
@@ -550,7 +559,7 @@ export function ExercisesView({
             className="w-full rounded-xl border border-[#E6DEF8] bg-white px-3 py-2 text-xs font-semibold text-[#22163F] focus:border-[#6D28D9] focus:outline-none"
           >
             <option value="all">كل المحاور</option>
-            {CHAPTERS_3AM.map((ch) => (
+            {levelChapters.map((ch) => (
               <option key={ch} value={ch}>
                 {ch}
               </option>

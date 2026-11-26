@@ -1,20 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  CLASS_LEVELS,
   computeLeaderboardRankings,
   computeStudentMetrics,
   computeTopicMastery,
   daysUntilTarget,
   filterCourses,
   filterExercises,
+  getChaptersForLevel,
   gradeExercise,
   normalizeTextAnswer,
   parseAcceptedAnswersList,
+  parseClassLevel,
   parseNumericInput,
   sanitizeDocId,
   verifyAdminAccessCode,
 } from './mathPlatform.ts';
 import type { Course, Exercise, Question, ScoreRecord } from '../types/math.ts';
+
+test('class level helpers support 1AM, 2AM, 3AM, and 4AM with distinct chapters', () => {
+  assert.deepEqual(CLASS_LEVELS, ['1AM', '2AM', '3AM', '4AM']);
+  assert.equal(parseClassLevel('1am'), '1AM');
+  assert.equal(parseClassLevel(' 4AM '), '4AM');
+  assert.equal(parseClassLevel('5AM'), null);
+  assert.equal(parseClassLevel(''), null);
+
+  for (const lvl of CLASS_LEVELS) {
+    const ch = getChaptersForLevel(lvl);
+    assert.equal(ch.length, 6);
+  }
+  assert.notDeepEqual(getChaptersForLevel('1AM'), getChaptersForLevel('4AM'));
+});
 
 test('parseNumericInput supports Arabic commas, Arabic/Persian digits, decimals, and fractions', () => {
   assert.equal(parseNumericInput('12,5'), 12.5);

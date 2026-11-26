@@ -1,18 +1,33 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Award, Crown, ListOrdered, Medal, Sparkles, Trophy } from 'lucide-react';
-import type { ScoreRecord } from '../types/math';
-import { CHAPTERS_3AM, computeLeaderboardRankings } from '../utils/mathPlatform';
+import type { ClassLevel, ScoreRecord } from '../types/math';
+import {
+  CLASS_LEVEL_META,
+  computeLeaderboardRankings,
+  getChaptersForLevel,
+} from '../utils/mathPlatform';
 
 interface ScoresLeaderboardViewProps {
+  activeLevel: ClassLevel;
   scores: ScoreRecord[];
   currentUserUid?: string;
 }
 
 type LeaderboardMode = 'ranking' | 'attempts';
 
-export function ScoresLeaderboardView({ scores, currentUserUid }: ScoresLeaderboardViewProps) {
+export function ScoresLeaderboardView({
+  activeLevel,
+  scores,
+  currentUserUid,
+}: ScoresLeaderboardViewProps) {
+  const levelMeta = CLASS_LEVEL_META[activeLevel];
+  const levelChapters = useMemo(() => getChaptersForLevel(activeLevel), [activeLevel]);
   const [chapterFilter, setChapterFilter] = useState('all');
   const [mode, setMode] = useState<LeaderboardMode>('ranking');
+
+  useEffect(() => {
+    setChapterFilter('all');
+  }, [activeLevel]);
 
   const scopedScores = useMemo(
     () => (chapterFilter === 'all' ? scores : scores.filter((s) => s.chapter === chapterFilter)),
@@ -42,7 +57,7 @@ export function ScoresLeaderboardView({ scores, currentUserUid }: ScoresLeaderbo
             <span>نتائج التلاميذ ولوحة الشرف</span>
           </h1>
           <p className="m-0 text-xs text-[#6E6390]">
-            الترتيب العام لتلاميذ 3 متوسط حسب مجموع النقاط المكتسبة في التمارين.
+            الترتيب العام لتلاميذ {levelMeta.shortLabel} ({activeLevel}) حسب مجموع النقاط المكتسبة في التمارين.
           </p>
         </div>
 
@@ -53,7 +68,7 @@ export function ScoresLeaderboardView({ scores, currentUserUid }: ScoresLeaderbo
           className="rounded-xl border border-[#E6DEF8] bg-white px-3 py-2 text-xs font-bold text-[#22163F] focus:border-[#6D28D9] focus:outline-none"
         >
           <option value="all">كل المحاور ({scores.length})</option>
-          {CHAPTERS_3AM.map((ch) => (
+          {levelChapters.map((ch) => (
             <option key={ch} value={ch}>
               {ch}
             </option>

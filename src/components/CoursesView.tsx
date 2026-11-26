@@ -15,12 +15,13 @@ import {
   Trash2,
 } from 'lucide-react';
 import { getCourseAttachment } from '../services/academyService';
-import type { Course, CourseAttachmentMeta, CourseAttachmentRecord, Exercise } from '../types/math';
+import type { ClassLevel, Course, CourseAttachmentMeta, CourseAttachmentRecord, Exercise } from '../types/math';
 import { dataUrlToObjectUrl, formatFileSizeArabic } from '../utils/lessonFileImport';
-import { CHAPTERS_3AM, filterCourses } from '../utils/mathPlatform';
+import { CLASS_LEVEL_META, filterCourses, getChaptersForLevel } from '../utils/mathPlatform';
 import { MathText } from './MathText';
 
 interface CoursesViewProps {
+  activeLevel: ClassLevel;
   courses: Course[];
   exercises: Exercise[];
   completedCourseIds: string[];
@@ -35,6 +36,7 @@ interface CoursesViewProps {
 }
 
 export function CoursesView({
+  activeLevel,
   courses,
   exercises,
   completedCourseIds,
@@ -47,6 +49,8 @@ export function CoursesView({
   onDeleteCourse,
   initialCourseId,
 }: CoursesViewProps) {
+  const levelMeta = CLASS_LEVEL_META[activeLevel];
+  const levelChapters = useMemo(() => getChaptersForLevel(activeLevel), [activeLevel]);
   const [search, setSearch] = useState('');
   const [chapter, setChapter] = useState('all');
   const [selectedId, setSelectedId] = useState<string | null>(initialCourseId || null);
@@ -65,6 +69,16 @@ export function CoursesView({
   useEffect(() => {
     if (initialCourseId) setSelectedId(initialCourseId);
   }, [initialCourseId]);
+
+  useEffect(() => {
+    setChapter('all');
+    setSearch('');
+    setSelectedId(null);
+    setLoadedAttachments({});
+    setPreviewPdfId(null);
+    setAttError(null);
+    attemptedAttIdsRef.current = new Set();
+  }, [activeLevel]);
 
   useEffect(() => {
     return () => {
@@ -96,7 +110,7 @@ export function CoursesView({
       for (const att of imageAtts) {
         attemptedAttIdsRef.current.add(att.id);
         try {
-          const rec = await getCourseAttachment(att.id);
+          const rec = await getCourseAttachment(att.id, activeLevel);
           if (rec && !cancelled) {
             setLoadedAttachments((prev) => ({ ...prev, [att.id]: rec }));
           }
@@ -108,14 +122,14 @@ export function CoursesView({
     return () => {
       cancelled = true;
     };
-  }, [selectedCourse, loadedAttachments]);
+  }, [selectedCourse, loadedAttachments, activeLevel]);
 
   async function ensureAttachmentLoaded(att: CourseAttachmentMeta): Promise<CourseAttachmentRecord | null> {
     setAttError(null);
     if (loadedAttachments[att.id]) return loadedAttachments[att.id];
     setLoadingAttId(att.id);
     try {
-      const rec = await getCourseAttachment(att.id);
+      const rec = await getCourseAttachment(att.id, activeLevel);
       if (rec) {
         setLoadedAttachments((prev) => ({ ...prev, [att.id]: rec }));
         if (rec.dataUrl && !objectUrls[att.id]) {
@@ -162,7 +176,9 @@ export function CoursesView({
     <div className="wrap space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="m-0 text-xl font-bold text-[#22163F]">دروس السنة 3 متوسط</h1>
+          <h1 className="m-0 text-xl font-bold text-[#22163F]">
+            دروس {levelMeta.title} ({activeLevel})
+          </h1>
           <p className="m-0 text-xs text-[#6E6390]">
             ملخصات مبسطة وقوانين رياضية وتمارين مرتبطة بكل محور.
           </p>
@@ -202,7 +218,7 @@ export function CoursesView({
           className="w-full rounded-xl border border-[#E6DEF8] bg-white px-3 py-2 text-sm font-semibold text-[#22163F] focus:border-[#6D28D9] focus:outline-none"
         >
           <option value="all">كل المحاور ({courses.length})</option>
-          {CHAPTERS_3AM.map((ch) => (
+          {levelChapters.map((ch) => (
             <option key={ch} value={ch}>
               {ch}
             </option>
@@ -252,7 +268,7 @@ export function CoursesView({
             <div className="bk3d" aria-hidden="true">
               <div className="bk-pages" />
               <div className="bk-cover">
-                <span className="bk-tag">3AM</span>
+                <span className="bk-tag">{activeLevel}</span>
                 <div className="bk-t">{selectedCourse.title}</div>
                 <span className="bk-sym">π</span>
               </div>

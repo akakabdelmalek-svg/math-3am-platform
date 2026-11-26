@@ -343,3 +343,412 @@ export const SEED_EVENTS: Omit<EventItem, 'createdBy' | 'createdAt' | 'updatedAt
     published: true,
   },
 ];
+
+export interface LevelSeedBundle {
+  settings: AcademySettings;
+  courses: Omit<Course, 'createdBy' | 'createdAt' | 'updatedAt'>[];
+  exercises: Omit<Exercise, 'createdBy' | 'createdAt' | 'updatedAt'>[];
+  events: Omit<EventItem, 'createdBy' | 'createdAt' | 'updatedAt'>[];
+}
+
+export const SEED_BY_LEVEL: Record<'1AM' | '2AM' | '3AM' | '4AM', LevelSeedBundle> = {
+  '1AM': {
+    settings: {
+      announcement:
+        'مرحباً بتلاميذ السنة الأولى متوسط! ركّزوا على الأعداد العشرية، القسمة الإقليدية، والتناظر المحوري مع إنجاز التمارين التفاعلية.',
+      targetDate: '2027-06-07',
+      targetLabel: 'العد التنازلي لاختبارات السنة 1 متوسط',
+    },
+    courses: [
+      {
+        id: 'course_1am_decimals_1',
+        title: 'الأعداد الطبيعية والأعداد العشرية',
+        chapter: 'الأعداد الطبيعية والأعداد العشرية',
+        chapterOrder: 1,
+        durationMin: 20,
+        summary:
+          'قراءة وكتابة الأعداد العشرية، الانتقال من الكتابة الكسرية إلى العشرية، ومقارنة وترتيب الأعداد العشرية على نصف مستقيم مدرّج.',
+        keyRules:
+          'كل عدد عشري يمكن كتابته على شكل كسر عشري مقامه $10, 100, 1000$.\nمثال: $3.45 = 3 + \\frac{4}{10} + \\frac{5}{100} = \\frac{345}{100}$',
+        videoUrl: '',
+        pdfUrl: '',
+        published: true,
+      },
+      {
+        id: 'course_1am_symmetry_1',
+        title: 'التناظر المحوري وإنشاء الأشكال البسيطة',
+        chapter: 'التناظر المحوري، المحيطات والمساحات والتناسبية',
+        chapterOrder: 6,
+        durationMin: 25,
+        summary:
+          'إنشاء نظير نقطة، قطعة مستقيم، مستقيم ودائرة بالنسبة إلى محور تناظر، وحفظ الأطوال والأقياس والزوايا.',
+        keyRules:
+          'يكون $(d)$ محور القطعة $[AB]$ إذا كان عمودياً عليها في منتصفها.\nالتناظر المحوري يحفظ الأطوال والأقياس والمساحات.',
+        videoUrl: '',
+        pdfUrl: '',
+        published: true,
+      },
+    ],
+    exercises: [
+      {
+        id: 'ex_1am_geom_1',
+        title: 'تمرين تفاعلي هندسة: محور قطعة مستقيم والزاوية القائمة',
+        chapter: 'الإنشاءات الهندسية والزوايا والمضلعات',
+        category: 'geometry',
+        difficulty: 'easy',
+        durationMinutes: 15,
+        description: 'ليكن $[AB]$ قطعة مستقيم طولها $8\\text{ cm}$ ومنتصفها $M$. أنجز المطلوب على الشبكة ثم أجب.',
+        geometryData: {
+          templateKey: 'custom',
+          canvasWidth: 480,
+          canvasHeight: 320,
+          drawPrompt: 'ارسم المستقيم العمودي على $[AB]$ في منتصفها $M$ وحدد الزاوية القائمة.',
+          baseShapes: [
+            { id: 'b1', kind: 'segment', x1: 100, y1: 170, x2: 380, y2: 170, color: '#22163F', label: '8 cm' },
+            { id: 'b2', kind: 'point', x: 100, y: 170, label: 'A', color: '#22163F' },
+            { id: 'b3', kind: 'point', x: 240, y: 170, label: 'M', color: '#3E1591' },
+            { id: 'b4', kind: 'point', x: 380, y: 170, label: 'B', color: '#22163F' },
+          ],
+          teacherCorrectionShapes: [
+            { id: 'c1', kind: 'segment', x1: 240, y1: 60, x2: 240, y2: 270, color: '#059669' },
+            { id: 'c2', kind: 'rightAngle', vx: 240, vy: 170, ux: 380, uy: 170, wx: 240, wy: 60, color: '#059669' },
+          ],
+          teacherCorrectionText: 'محور القطعة $[AB]$ يمر بالمنتصف $M$ ويعامد $(AB)$ فيكوّن زاوية قائمة قياسها $90^\\circ$.',
+        },
+        questions: [
+          {
+            id: 'q1',
+            type: 'number',
+            prompt: 'إذا كان $AB = 8\\text{ cm}$ و $M$ منتصفها، فما طول القطعة $AM$ بالسنتيمتر؟',
+            correctNumber: 4,
+            unit: 'cm',
+            points: 10,
+            explanation: 'المنتصف يقسم القطعة إلى نصفين متقايسين: $8 \\div 2 = 4\\text{ cm}$.',
+          },
+          {
+            id: 'q2',
+            type: 'choice',
+            prompt: 'ما قيس الزاوية التي يصنعها محور قطعة مستقيم معها؟',
+            choices: ['$45^\\circ$', '$90^\\circ$', '$180^\\circ$', '$60^\\circ$'],
+            correctChoiceIndex: 1,
+            points: 10,
+            explanation: 'المحور عمودي على القطعة المستقيمة إذن الزاوية قائمة ($90^\\circ$).',
+          },
+        ],
+        published: true,
+      },
+      {
+        id: 'ex_1am_decimals_1',
+        title: 'تطبيق سريع: الأعداد العشرية والكسور العشرية',
+        chapter: 'الأعداد الطبيعية والأعداد العشرية',
+        category: 'daily',
+        difficulty: 'easy',
+        durationMinutes: 10,
+        description: 'تمرين تطبيقي حول التفكيك والمقارنة والحساب الذهني للأعداد العشرية.',
+        questions: [
+          {
+            id: 'q1',
+            type: 'number',
+            prompt: 'احسب ناتج: $4.5 + 3.25$',
+            correctNumber: 7.75,
+            points: 10,
+            explanation: '$4.50 + 3.25 = 7.75$.',
+          },
+          {
+            id: 'q2',
+            type: 'choice',
+            prompt: 'ما هي الكتابة العشرية للكسر $\\frac{47}{10}$ ؟',
+            choices: ['$0.47$', '$4.7$', '$470$', '$4.07$'],
+            correctChoiceIndex: 1,
+            points: 10,
+            explanation: 'القسمة على $10$ تزيح الفاصلة مرتبة واحدة نحو اليسار: $4.7$.',
+          },
+        ],
+        published: true,
+      },
+    ],
+    events: [
+      {
+        id: 'event_1am_start',
+        title: 'حصة تأسيسية: الحساب على الأعداد العشرية (1 متوسط)',
+        eventType: 'live',
+        eventDate: '2026-12-03',
+        eventTime: '17:30',
+        description: 'مراجعة مبسطة للجمع والطرح والضرب والقسمة على $10, 100, 1000$.',
+        link: '',
+        published: true,
+      },
+    ],
+  },
+  '2AM': {
+    settings: {
+      announcement:
+        'مرحباً بتلاميذ السنة الثانية متوسط! راجعوا أولويات العمليات، الكسور، والأعداد النسبية والتناظر المركزي لتحقيق التفوق.',
+      targetDate: '2027-06-07',
+      targetLabel: 'العد التنازلي لاختبارات السنة 2 متوسط',
+    },
+    courses: [
+      {
+        id: 'course_2am_ops_1',
+        title: 'سلسلة عمليات دون أقواس وبأقواس',
+        chapter: 'سلسلة العمليات على الأعداد الطبيعية والعشرية',
+        chapterOrder: 1,
+        durationMin: 25,
+        summary:
+          'تطبيق قواعد أولوية الضرب والقسمة على الجمع والطرح، وحساب سلاسل العمليات المتضمنة أقواساً متداخلة.',
+        keyRules:
+          'الأولوية أولاً للأقواس، ثم للضرب والقسمة قبل الجمع والطرح، ومن اليسار إلى اليمين عند تساوي الأولوية.',
+        videoUrl: '',
+        pdfUrl: '',
+        published: true,
+      },
+      {
+        id: 'course_2am_rel_2',
+        title: 'جمع وطرح عددين نسبيين ومقارنتهما',
+        chapter: 'الأعداد النسبية: المقارنة والجمع والطرح',
+        chapterOrder: 3,
+        durationMin: 25,
+        summary:
+          'تمثيل الأعداد النسبية على مستقيم مدرج، حساب المسافة إلى الصفر، وجمع وطرح عددين نسبيين.',
+        keyRules:
+          'طرح عدد نسبي هو إضافة معاكسه: $a - b = a + (-b)$.\nمثال: $(+5) - (-3) = (+5) + (+3) = +8$.',
+        videoUrl: '',
+        pdfUrl: '',
+        published: true,
+      },
+    ],
+    exercises: [
+      {
+        id: 'ex_2am_geom_1',
+        title: 'تمرين تفاعلي هندسة: التناظر المركزي ومتوازي الأضلاع',
+        chapter: 'التناظر المركزي والزوايا والتوازي',
+        category: 'geometry',
+        difficulty: 'medium',
+        durationMinutes: 15,
+        description: 'ليكن $O$ مركز تناظر للقطعة $[AB]$، ارسم النظير وأجب عن الأسئلة.',
+        geometryData: {
+          templateKey: 'custom',
+          canvasWidth: 480,
+          canvasHeight: 320,
+          drawPrompt: 'ارسم القطرين المتقاطعين في مركز التناظر $O$ لإتمام متوازي الأضلاع $ABCD$.',
+          baseShapes: [
+            { id: 'b1', kind: 'segment', x1: 130, y1: 110, x2: 310, y2: 110, color: '#22163F' },
+            { id: 'b2', kind: 'segment', x1: 130, y1: 110, x2: 170, y2: 220, color: '#22163F' },
+            { id: 'b3', kind: 'point', x: 130, y: 110, label: 'A', color: '#22163F' },
+            { id: 'b4', kind: 'point', x: 310, y: 110, label: 'B', color: '#22163F' },
+            { id: 'b5', kind: 'point', x: 170, y: 220, label: 'D', color: '#22163F' },
+            { id: 'b6', kind: 'point', x: 240, y: 165, label: 'O', color: '#3E1591' },
+          ],
+          teacherCorrectionShapes: [
+            { id: 'c1', kind: 'segment', x1: 170, y1: 220, x2: 350, y2: 220, color: '#059669' },
+            { id: 'c2', kind: 'segment', x1: 310, y1: 110, x2: 350, y2: 220, color: '#059669' },
+            { id: 'c3', kind: 'point', x: 350, y: 220, label: 'C', color: '#059669' },
+          ],
+          teacherCorrectionText: 'في متوازي الأضلاع $ABCD$، القطران $[AC]$ و$[BD]$ متناصفان في مركز التناظر $O$.',
+        },
+        questions: [
+          {
+            id: 'q1',
+            type: 'choice',
+            prompt: 'نقطة تقاطع قطري متوازي الأضلاع تمثل:',
+            choices: ['مركز تناظره', 'رأساً قائماً', 'محيطه', 'ارتفاعه'],
+            correctChoiceIndex: 0,
+            points: 10,
+            explanation: 'قطرا متوازي الأضلاع يتقاطعان في منتصف كل منهما وهو مركز تناظره.',
+          },
+          {
+            id: 'q2',
+            type: 'number',
+            prompt: 'إذا كان محيط متوازي أضلاع هو $26\\text{ cm}$ وطول أحد ضلعيه $8\\text{ cm}$، فما طول الضلع المجاور بالسنتيمتر؟',
+            correctNumber: 5,
+            unit: 'cm',
+            points: 10,
+            explanation: 'نصف المحيط يساوي $13\\text{ cm}$، إذن الضلع المجاور $13 - 8 = 5\\text{ cm}$.',
+          },
+        ],
+        published: true,
+      },
+      {
+        id: 'ex_2am_ops_1',
+        title: 'تطبيق سريع: أولوية العمليات والأعداد النسبية',
+        chapter: 'سلسلة العمليات على الأعداد الطبيعية والعشرية',
+        category: 'daily',
+        difficulty: 'easy',
+        durationMinutes: 10,
+        description: 'تمرين تفاعلي لتثبيت الأولوية في الحساب وحساب المجاميع الجبرية.',
+        questions: [
+          {
+            id: 'q1',
+            type: 'number',
+            prompt: 'احسب: $3 + 4 \\times 5$',
+            correctNumber: 23,
+            points: 10,
+            explanation: 'الأولوية للضرب: $4 \\times 5 = 20$ ثم $3 + 20 = 23$.',
+          },
+          {
+            id: 'q2',
+            type: 'number',
+            prompt: 'احسب: $(-7) + (+12)$',
+            correctNumber: 5,
+            points: 10,
+            explanation: 'العددان مختلفان في الإشارة: نطرح $12 - 7 = 5$ ونأخذ إشارة الأكبر مسافة (+).',
+          },
+        ],
+        published: true,
+      },
+    ],
+    events: [
+      {
+        id: 'event_2am_live',
+        title: 'مراجعة فرض الفصل الأول — السنة 2 متوسط',
+        eventType: 'devoir',
+        eventDate: '2026-12-06',
+        eventTime: '18:00',
+        description: 'حل تمارين شاملة في سلاسل العمليات والكسور والتناظر المركزي.',
+        link: '',
+        published: true,
+      },
+    ],
+  },
+  '3AM': {
+    settings: DEFAULT_SETTINGS,
+    courses: SEED_COURSES,
+    exercises: SEED_EXERCISES,
+    events: SEED_EVENTS,
+  },
+  '4AM': {
+    settings: {
+      announcement:
+        'مرحباً بمترشحي شهادة التعليم المتوسط (4AM BEM)! تدربوا يومياً على PGCD، الجذور، المتطابقات الشهيرة، طالس والدوال لضمان العلامة الكاملة.',
+      targetDate: '2027-06-14',
+      targetLabel: 'العد التنازلي لشهادة التعليم المتوسط (BEM)',
+    },
+    courses: [
+      {
+        id: 'course_4am_pgcd_roots',
+        title: 'القاسم المشترك الأكبر (PGCD) والجذور التربيعية',
+        chapter: 'الأعداد الطبيعية والأعداد الناطقة والجذور التربيعية',
+        chapterOrder: 1,
+        durationMin: 30,
+        summary:
+          'حساب القاسم المشترك الأكبر لعددين طبيعيين باستعمال خوارزمية إقليدس، اختزال الكسور، وتبسيط العبارات التي تتضمن جذوراً تربيعية.',
+        keyRules:
+          'لأجل $a \\ge 0$ و $b > 0$: $\\sqrt{a \\times b} = \\sqrt{a} \\times \\sqrt{b}$ و $\\sqrt{\\frac{a}{b}} = \\frac{\\sqrt{a}}{\\sqrt{b}}$.\nالعدد الأولي فيما بينهما قاسمهما المشترك الأكبر هو $1$.',
+        videoUrl: '',
+        pdfUrl: '',
+        published: true,
+      },
+      {
+        id: 'course_4am_thales_trig',
+        title: 'خاصية طالس والنسب المثلثية في المثلث القائم',
+        chapter: 'خاصية طالس والنسب المثلثية في المثلث القائم',
+        chapterOrder: 5,
+        durationMin: 35,
+        summary:
+          'حساب الأطوال بخاصية طالس، إثبات التوازي بالخاصية العكسية لطالس، وحساب $\\sin$ و $\\cos$ و $\\tan$ لزاوية حادة.',
+        keyRules:
+          'إذا تقاطع $(BM)$ و $(CN)$ في $A$ وكان $(MN) \\parallel (BC)$ فإن: $\\frac{AM}{AB} = \\frac{AN}{AC} = \\frac{MN}{BC}$.\n$\\cos^2 x + \\sin^2 x = 1$ ، $\\tan x = \\frac{\\sin x}{\\cos x}$.',
+        videoUrl: '',
+        pdfUrl: '',
+        published: true,
+      },
+    ],
+    exercises: [
+      {
+        id: 'ex_4am_geom_thales_1',
+        title: 'تمرين تفاعلي هندسة: خاصية طالس والنسب المثلثية',
+        chapter: 'خاصية طالس والنسب المثلثية في المثلث القائم',
+        category: 'geometry',
+        difficulty: 'medium',
+        durationMinutes: 20,
+        description: 'في المثلث $ABC$، لدينا $M \\in [AB]$ و $N \\in [AC]$ حيث $(MN) \\parallel (BC)$ و $AM=3, AB=6, BC=8$.',
+        geometryData: {
+          templateKey: 'custom',
+          canvasWidth: 480,
+          canvasHeight: 320,
+          drawPrompt: 'ارسم المستقيم الموازي لـ $(BC)$ الذي يشمل $M$ ويقطع $[AC]$ في $N$.',
+          baseShapes: [
+            { id: 'b1', kind: 'segment', x1: 240, y1: 50, x2: 110, y2: 260, color: '#22163F' },
+            { id: 'b2', kind: 'segment', x1: 240, y1: 50, x2: 370, y2: 260, color: '#22163F' },
+            { id: 'b3', kind: 'segment', x1: 110, y1: 260, x2: 370, y2: 260, color: '#22163F', label: '8 cm' },
+            { id: 'b4', kind: 'point', x: 240, y: 50, label: 'A', color: '#22163F' },
+            { id: 'b5', kind: 'point', x: 110, y: 260, label: 'B', color: '#22163F' },
+            { id: 'b6', kind: 'point', x: 370, y: 260, label: 'C', color: '#22163F' },
+            { id: 'b7', kind: 'point', x: 175, y: 155, label: 'M', color: '#3E1591' },
+          ],
+          teacherCorrectionShapes: [
+            { id: 'c1', kind: 'segment', x1: 175, y1: 155, x2: 305, y2: 155, color: '#059669' },
+            { id: 'c2', kind: 'point', x: 305, y: 155, label: 'N', color: '#059669' },
+          ],
+          teacherCorrectionText: 'حسب خاصية طالس: $\\frac{AM}{AB} = \\frac{MN}{BC} \\Rightarrow \\frac{3}{6} = \\frac{MN}{8} \\Rightarrow MN = 4\\text{ cm}$.',
+        },
+        questions: [
+          {
+            id: 'q1',
+            type: 'number',
+            prompt: 'باستعمال خاصية طالس ($AM=3, AB=6, BC=8$)، احسب الطول $MN$ بالسنتيمتر:',
+            correctNumber: 4,
+            unit: 'cm',
+            points: 10,
+            explanation: '$MN = \\frac{3 \\times 8}{6} = 4\\text{ cm}$.',
+          },
+          {
+            id: 'q2',
+            type: 'choice',
+            prompt: 'ما قيمة $\\cos^2(\\alpha) + \\sin^2(\\alpha)$ لأي زاوية حادة $\\alpha$ ؟',
+            choices: ['$0$', '$1$', '$2$', '$0.5$'],
+            correctChoiceIndex: 1,
+            points: 10,
+            explanation: 'العلاقة الأساسية في المثلث القائم هي $\\cos^2(\\alpha) + \\sin^2(\\alpha) = 1$.',
+          },
+        ],
+        published: true,
+      },
+      {
+        id: 'ex_4am_pgcd_identities_1',
+        title: 'موضوع BEM نموذجي: PGCD والمتطابقات الشهيرة',
+        chapter: 'الحساب الحرفي والمتطابقات الشهيرة والتحليل',
+        category: 'exam',
+        difficulty: 'hard',
+        durationMinutes: 20,
+        description: 'تدرب على النشر والتحليل وحساب القاسم المشترك الأكبر.',
+        questions: [
+          {
+            id: 'q1',
+            type: 'number',
+            prompt: 'احسب القاسم المشترك الأكبر $\\text{PGCD}(48 ; 36)$:',
+            correctNumber: 12,
+            points: 10,
+            explanation: 'بخوارزمية إقليدس: $48 = 36\\times 1 + 12$ و $36 = 12\\times 3 + 0$، إذن $\\text{PGCD}=12$.',
+          },
+          {
+            id: 'q2',
+            type: 'choice',
+            prompt: 'ما تحليل العبارة $x^2 - 9$ باستعمال المتطابقة الشهيرة؟',
+            choices: ['$(x-3)^2$', '$(x+3)^2$', '$(x-3)(x+3)$', '$(x-9)(x+1)$'],
+            correctChoiceIndex: 2,
+            points: 10,
+            explanation: 'فرق مربعين: $a^2 - b^2 = (a-b)(a+b) \\Rightarrow x^2 - 3^2 = (x-3)(x+3)$.',
+          },
+        ],
+        published: true,
+      },
+    ],
+    events: [
+      {
+        id: 'event_4am_bem_mock',
+        title: 'امتحان تجريبي تحضيري لشهادة BEM (4 متوسط)',
+        eventType: 'exam',
+        eventDate: '2026-12-12',
+        eventTime: '18:30',
+        description: 'موضوع شامل يغطي الجذور، المتطابقات الشهيرة، طالس والنسب المثلثية.',
+        link: '',
+        published: true,
+      },
+    ],
+  },
+};
+
+export function getSeedDataForLevel(level: '1AM' | '2AM' | '3AM' | '4AM'): LevelSeedBundle {
+  return SEED_BY_LEVEL[level] || SEED_BY_LEVEL['3AM'];
+}

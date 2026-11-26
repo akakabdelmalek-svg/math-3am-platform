@@ -11,6 +11,7 @@ import {
 import type {
   AcademySettings,
   AppView,
+  ClassLevel,
   Course,
   EventItem,
   Exercise,
@@ -18,10 +19,11 @@ import type {
   StudentMetrics,
   UserProfile,
 } from '../types/math';
-import { daysUntilTarget } from '../utils/mathPlatform';
+import { CLASS_LEVEL_META, daysUntilTarget } from '../utils/mathPlatform';
 import { MathText } from './MathText';
 
 interface HomeViewProps {
+  activeLevel: ClassLevel;
   settings: AcademySettings;
   courses: Course[];
   exercises: Exercise[];
@@ -36,6 +38,7 @@ interface HomeViewProps {
 }
 
 export function HomeView({
+  activeLevel,
   settings,
   courses,
   exercises,
@@ -48,6 +51,7 @@ export function HomeView({
   onOpenStudentAuth,
   onStartExercise,
 }: HomeViewProps) {
+  const levelMeta = CLASS_LEVEL_META[activeLevel];
   const daysLeft = daysUntilTarget(settings.targetDate);
   const geometryCount = exercises.filter(
     (e) => e.category === 'geometry' || Boolean(e.geometryData)
@@ -67,7 +71,7 @@ export function HomeView({
     },
     {
       key: 'courses',
-      title: 'دروس 3 متوسط',
+      title: `دروس ${levelMeta.shortLabel}`,
       sub: `${courses.length} دروس وقوانين`,
       sym: 'π',
       c: '#7c3aed',
@@ -126,7 +130,7 @@ export function HomeView({
             <div className="me-av">{userProfile.displayName.charAt(0)}</div>
             <div className="me-nm">
               <h2>
-                مرحباً {userProfile.displayName} ({userProfile.classGroup || '3AM'})
+                مرحباً {userProfile.displayName} ({userProfile.classGroup || activeLevel})
               </h2>
               <p>مستواك الحالي: {metrics.levelLabel}</p>
             </div>
@@ -162,7 +166,7 @@ export function HomeView({
       ) : (
         <section className="hero4">
           <div className="tx">
-            <span className="sg">السنة الثالثة متوسط — المنهاج الجزائري</span>
+            <span className="sg">{levelMeta.title} — المنهاج الجزائري ({activeLevel})</span>
             <h1>كرّاس الرياضيات التفاعلي — أكاديمية الرياضيات</h1>
             <p>
               دروس منظمة بالقوانين الرياضية، تمارين جبر وهندسة تفاعلية بالرسم والتصحيح الفوري /20.
@@ -241,7 +245,13 @@ export function HomeView({
       {/* Colored Subject Grid Tiles */}
       <div className="mb-2 flex items-center justify-between">
         <h2 className="m-0 text-base font-bold text-[#22163F]">أقسام المنصة</h2>
-        <span className="text-xs font-semibold text-[#6E6390]">3 متوسط</span>
+        <button
+          type="button"
+          onClick={() => onNavigate('classes')}
+          className="border-0 bg-transparent text-xs font-bold text-[#6D28D9] cursor-pointer"
+        >
+          {levelMeta.shortLabel} ({activeLevel}) · تغيير القسم
+        </button>
       </div>
 
       <div className="sk-grid">

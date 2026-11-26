@@ -284,7 +284,21 @@ export interface StudentRankingEntry {
   totalDurationSeconds: number;
 }
 
+export type ClassLevel = '1AM' | '2AM' | '3AM' | '4AM';
+
+export interface ClassLevelMeta {
+  id: ClassLevel;
+  shortLabel: string;
+  title: string;
+  subtitle: string;
+  badge: string;
+  accentC: string;
+  accentD: string;
+  sym: string;
+}
+
 export type AppView =
+  | 'classes'
   | 'home'
   | 'courses'
   | 'exercises'

@@ -1,8 +1,9 @@
-# Firestore Security Specification — أكاديمية الأستاذ دقيش علي (3AM Math)
+# Firestore Security Specification — أكاديمية الرياضيات (1AM–4AM)
 
 ## 1. Data Invariants
-1. **Admin Authority**: Only verified admins (`request.auth.token.email == 'akakabdelmalek@gmail.com' && request.auth.token.email_verified == true` or active `/admins/$(request.auth.uid)` doc) can create, edit, or delete `courses`, `exercises`, `events`, `settings`, or `admins`, and read/delete arbitrary student records.
-2. **Self-Assigned Role Prevention**: On `/users/{userId}`, users can only create their own profile (`userId == request.auth.uid`) with `role == 'student'`, and cannot escalate `role` to `'admin'` during updates.
+1. **Admin Authority**: Only verified admins (`request.auth.token.email == 'akakabdelmalek@gmail.com' && request.auth.token.email_verified == true` or active `/admins/$(request.auth.uid)` doc) can create, edit, or delete `courses`, `exercises`, `events`, `settings`, or `admins` (both root `3AM` and `/levels/{levelId}` spaces), and read/delete arbitrary student records.
+2. **Class Level Isolation**: Each class level (`1AM`, `2AM`, `3AM`, `4AM`) stores its own isolated collections; `levelId` path parameters are strictly validated against `['1AM', '2AM', '3AM', '4AM']`.
+3. **Self-Assigned Role Prevention**: On `/users/{userId}`, users can only create their own profile (`userId == request.auth.uid`) with `role == 'student'`, and cannot escalate `role` to `'admin'` during updates.
 3. **PII Protection**: `/users/{userId}` (which may hold `email`) is readable ONLY by the document owner (`isOwner(userId)`) or `isAdmin()`. Public leaderboard/scores NEVER store `email`, `phone`, or `address`.
 4. **Student Progress Ownership**: `/studentProgress/{userId}` can only be read, created, and updated by `isOwner(userId)` or `isAdmin()`.
 5. **Score Integrity**: `/scores/{scoreId}` requires an authenticated user (`isSignedIn()`), `studentUid == request.auth.uid`, valid bounded math scores (`score >= 0 && score <= total`, `total > 0 && total <= 500`, `outOf20 >= 0 && outOf20 <= 20`, `percentage >= 0 && percentage <= 100`), server timestamp (`createdAt == request.time`), and immutability after creation (except `isAdmin()` delete).

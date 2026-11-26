@@ -21,11 +21,13 @@ import {
   updateProfile,
 } from '../firebase';
 import { activateAdminWithCode, ensureUserProfile } from '../services/academyService';
-import { verifyAdminAccessCode } from '../utils/mathPlatform';
+import type { ClassLevel } from '../types/math';
+import { CLASS_LEVEL_META, verifyAdminAccessCode } from '../utils/mathPlatform';
 
 export type AuthModalMode = 'student' | 'admin';
 
 interface AuthModalProps {
+  activeLevel: ClassLevel;
   mode: AuthModalMode;
   onClose: () => void;
   onSuccess: (role: 'student' | 'admin') => void | Promise<void>;
@@ -34,12 +36,14 @@ interface AuthModalProps {
 }
 
 export function AuthModal({
+  activeLevel,
   mode,
   onClose,
   onSuccess,
   onSwitchMode,
   onAuthFlowChange,
 }: AuthModalProps) {
+  const levelMeta = CLASS_LEVEL_META[activeLevel];
   const [authAction, setAuthAction] = useState<'login' | 'register'>('login');
   const [adminCode, setAdminCode] = useState('');
   const [adminCodeVerified, setAdminCodeVerified] = useState(false);
@@ -47,10 +51,14 @@ export function AuthModal({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [classGroup, setClassGroup] = useState('3AM1');
+  const [classGroup, setClassGroup] = useState(`${activeLevel}1`);
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    setClassGroup(`${activeLevel}1`);
+  }, [activeLevel]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -134,23 +142,31 @@ export function AuthModal({
           setErrorMsg('تعذر تفعيل صلاحية الإدارة بهذا الرمز.');
           return;
         }
-        await ensureUserProfile(cred.user, {
-          displayName: displayName.trim() || undefined,
-          role: 'admin',
-        });
+        await ensureUserProfile(
+          cred.user,
+          {
+            displayName: displayName.trim() || undefined,
+            role: 'admin',
+          },
+          activeLevel
+        );
         await onSuccess('admin');
       } else if (authAction === 'register') {
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
         await updateProfile(cred.user, { displayName: displayName.trim() });
-        await ensureUserProfile(cred.user, {
-          displayName: displayName.trim(),
-          classGroup: classGroup.trim() || '3AM',
-          role: 'student',
-        });
+        await ensureUserProfile(
+          cred.user,
+          {
+            displayName: displayName.trim(),
+            classGroup: classGroup.trim() || activeLevel,
+            role: 'student',
+          },
+          activeLevel
+        );
         await onSuccess('student');
       } else {
         const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
-        await ensureUserProfile(cred.user, { role: 'student' });
+        await ensureUserProfile(cred.user, { role: 'student' }, activeLevel);
         await onSuccess('student');
       }
     } catch (err) {
@@ -179,10 +195,10 @@ export function AuthModal({
           setErrorMsg('تعذر تفعيل صلاحية الإدارة لهذا الحساب.');
           return;
         }
-        await ensureUserProfile(cred.user, { role: 'admin' });
+        await ensureUserProfile(cred.user, { role: 'admin' }, activeLevel);
         await onSuccess('admin');
       } else {
-        await ensureUserProfile(cred.user, { role: 'student' });
+        await ensureUserProfile(cred.user, { role: 'student' }, activeLevel);
         await onSuccess('student');
       }
     } catch (err) {
@@ -231,7 +247,7 @@ export function AuthModal({
             </span>
             <div>
               <h2 id="auth-modal-title" className="font-display text-lg font-bold">
-                {isAdminFlow ? 'دخول الإدارة (الأستاذ)' : 'بوابة التلميذ — 3 متوسط'}
+                {isAdminFlow ? 'دخول الإدارة (الأستاذ)' : `بوابة التلميذ — ${levelMeta.shortLabel}`}
               </h2>
               <p className="text-xs text-white/80">
                 {isAdminFlow
@@ -448,10 +464,10 @@ export function AuthModal({
                           onChange={(e) => setClassGroup(e.target.value)}
                           className="w-full rounded-xl border border-[#D6C9F3] bg-white px-2.5 py-2 text-sm focus:border-[#6D28D9] focus:outline-none"
                         >
-                          <option value="3AM1">3 متوسط 1</option>
-                          <option value="3AM2">3 متوسط 2</option>
-                          <option value="3AM3">3 متوسط 3</option>
-                          <option value="3AM4">3 متوسط 4</option>
+                          <option value={`${activeLevel}1`}>{levelMeta.shortLabel} 1</option>
+                          <option value={`${activeLevel}2`}>{levelMeta.shortLabel} 2</option>
+                          <option value={`${activeLevel}3`}>{levelMeta.shortLabel} 3</option>
+                          <option value={`${activeLevel}4`}>{levelMeta.shortLabel} 4</option>
                         </select>
                       </div>
                     )}

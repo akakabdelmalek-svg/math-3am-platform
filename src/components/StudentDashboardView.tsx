@@ -11,16 +11,18 @@ import {
 } from 'lucide-react';
 import type {
   AppView,
+  ClassLevel,
   Course,
   Exercise,
   ScoreRecord,
   StudentMetrics,
   UserProfile,
 } from '../types/math';
-import { computeTopicMastery } from '../utils/mathPlatform';
+import { CLASS_LEVEL_META, computeTopicMastery, getChaptersForLevel } from '../utils/mathPlatform';
 import { GeometryCanvas } from './GeometryCanvas';
 
 interface StudentDashboardViewProps {
+  activeLevel: ClassLevel;
   userProfile: UserProfile | null;
   scores: ScoreRecord[];
   courses: Course[];
@@ -35,6 +37,7 @@ interface StudentDashboardViewProps {
 }
 
 export function StudentDashboardView({
+  activeLevel,
   userProfile,
   scores,
   courses,
@@ -48,6 +51,7 @@ export function StudentDashboardView({
   onNavigate,
 }: StudentDashboardViewProps) {
   const [expandedScoreId, setExpandedScoreId] = useState<string | null>(null);
+  const levelMeta = CLASS_LEVEL_META[activeLevel];
 
   if (!userProfile) {
     return (
@@ -84,7 +88,8 @@ export function StudentDashboardView({
     exercises,
     courses,
     completedCourseIds,
-    completedExerciseIds
+    completedExerciseIds,
+    getChaptersForLevel(activeLevel)
   );
 
   return (
@@ -96,7 +101,7 @@ export function StudentDashboardView({
           <div className="me-nm">
             <h2>{userProfile.displayName}</h2>
             <p>
-              القسم: {userProfile.classGroup || '3 متوسط'} · التقييم: {metrics.levelLabel}
+              القسم: {userProfile.classGroup || levelMeta.shortLabel} · التقييم: {metrics.levelLabel}
             </p>
           </div>
         </div>

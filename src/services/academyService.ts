@@ -10,6 +10,9 @@ import {
   setDoc,
   updateDoc,
   where,
+  type CollectionReference,
+  type DocumentData,
+  type DocumentReference,
   type Unsubscribe,
 } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
@@ -19,14 +22,10 @@ import {
   OperationType,
   PRIMARY_ADMIN_EMAIL,
 } from '../firebase';
-import {
-  DEFAULT_SETTINGS,
-  SEED_COURSES,
-  SEED_EVENTS,
-  SEED_EXERCISES,
-} from '../data/seedData';
+import { getSeedDataForLevel } from '../data/seedData';
 import type {
   AcademySettings,
+  ClassLevel,
   Course,
   CourseAttachmentMeta,
   CourseAttachmentRecord,
@@ -39,15 +38,51 @@ import type {
   UserProfile,
 } from '../types/math';
 import { splitDataUrlChunks } from '../utils/lessonFileImport';
-import { sanitizeDocId, verifyAdminAccessCode } from '../utils/mathPlatform';
+import {
+  CLASS_LEVEL_META,
+  sanitizeDocId,
+  verifyAdminAccessCode,
+} from '../utils/mathPlatform';
 
 function toMillis(val: unknown): number {
   if (!val) return 0;
   if (typeof val === 'number') return val;
-  if (typeof val === 'object' && val !== null && 'toMillis' in val && typeof (val as { toMillis: () => number }).toMillis === 'function') {
+  if (
+    typeof val === 'object' &&
+    val !== null &&
+    'toMillis' in val &&
+    typeof (val as { toMillis: () => number }).toMillis === 'function'
+  ) {
     return (val as { toMillis: () => number }).toMillis();
   }
   return 0;
+}
+
+export function levelCollectionPath(level: ClassLevel, colName: string): string {
+  return level === '3AM' ? colName : `levels/${level}/${colName}`;
+}
+
+export function levelDocPath(level: ClassLevel, colName: string, id: string): string {
+  return level === '3AM' ? `${colName}/${id}` : `levels/${level}/${colName}/${id}`;
+}
+
+function levelCollectionRef(
+  level: ClassLevel,
+  colName: string
+): CollectionReference<DocumentData> {
+  return level === '3AM'
+    ? collection(db, colName)
+    : collection(db, 'levels', level, colName);
+}
+
+function levelDocRef(
+  level: ClassLevel,
+  colName: string,
+  id: string
+): DocumentReference<DocumentData> {
+  return level === '3AM'
+    ? doc(db, colName, id)
+    : doc(db, 'levels', level, colName, id);
 }
 
 export async function checkAdminAccess(user: User | null): Promise<boolean> {
@@ -107,21 +142,32 @@ export async function activateAdminWithCode(user: User, rawCode: string): Promis
 
 export async function ensureUserProfile(
   user: User,
-  overrides?: { displayName?: string; classGroup?: string; role?: 'student' | 'admin' }
+  overrides?: { displayName?: string; classGroup?: string; role?: 'student' | 'admin' },
+  level: ClassLevel = '3AM'
 ): Promise<UserProfile> {
   const path = `users/${user.uid}`;
   const ref = doc(db, 'users', user.uid);
   const isAdmin = await checkAdminAccess(user);
+  const defaultStudentName = `تلميذ ${CLASS_LEVEL_META[level]?.shortLabel || '3 متوسط'}`;
 
   try {
     const snap = await getDoc(ref);
     if (snap.exists()) {
       const data = snap.data() as UserProfile;
       const resolvedRole = isAdmin ? 'admin' : data.role || 'student';
-      if (overrides?.displayName || overrides?.classGroup || (isAdmin && data.role !== 'admin')) {
+      if (
+        overrides?.displayName ||
+        overrides?.classGroup ||
+        (isAdmin && data.role !== 'admin')
+      ) {
         await updateDoc(ref, {
-          displayName: (overrides?.displayName || data.displayName || user.displayName || 'تلميذ 3 متوسط').slice(0, 80),
-          classGroup: (overrides?.classGroup || data.classGroup || '3AM').slice(0, 30),
+          displayName: (
+            overrides?.displayName ||
+            data.displayName ||
+            user.displayName ||
+            defaultStudentName
+          ).slice(0, 80),
+          classGroup: (overrides?.classGroup || data.classGroup || level).slice(0, 30),
           role: resolvedRole,
           updatedAt: serverTimestamp(),
         });
@@ -136,13 +182,13 @@ export async function ensureUserProfile(
       overrides?.displayName?.trim() ||
       user.displayName?.trim() ||
       user.email?.split('@')[0] ||
-      'تلميذ 3 متوسط';
+      defaultStudentName;
     const role = isAdmin ? 'admin' : 'student';
 
     const payload: Record<string, unknown> = {
       uid: user.uid,
       displayName: fallbackName.slice(0, 80),
-      classGroup: (overrides?.classGroup || '3AM').slice(0, 30),
+      classGroup: (overrides?.classGroup || level).slice(0, 30),
       role,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -166,10 +212,12 @@ export async function ensureUserProfile(
 
 export async function ensureStudentProgress(
   user: User,
-  studentName: string
+  studentName: string,
+  level: ClassLevel = '3AM'
 ): Promise<StudentProgress> {
-  const path = `studentProgress/${user.uid}`;
-  const ref = doc(db, 'studentProgress', user.uid);
+  const path = levelDocPath(level, 'studentProgress', user.uid);
+  const ref = levelDocRef(level, 'studentProgress', user.uid);
+  const defaultStudentName = `تلميذ ${CLASS_LEVEL_META[level]?.shortLabel || '3 متوسط'}`;
   try {
     const snap = await getDoc(ref);
     if (snap.exists()) {
@@ -177,7 +225,7 @@ export async function ensureStudentProgress(
     }
     const initial: StudentProgress = {
       userId: user.uid,
-      studentName: (studentName || 'تلميذ 3 متوسط').slice(0, 80),
+      studentName: (studentName || defaultStudentName).slice(0, 80),
       completedCourseIds: [],
       completedExerciseIds: [],
       totalAttempts: 0,
@@ -211,12 +259,12 @@ function forwardSnapshotError(
 export function subscribeCourses(
   isAdmin: boolean,
   onData: (items: Course[]) => void,
-  onError?: (err: Error) => void
+  onError?: (err: Error) => void,
+  level: ClassLevel = '3AM'
 ): Unsubscribe {
-  const path = 'courses';
-  const q = isAdmin
-    ? query(collection(db, path))
-    : query(collection(db, path), where('published', '==', true));
+  const path = levelCollectionPath(level, 'courses');
+  const col = levelCollectionRef(level, 'courses');
+  const q = isAdmin ? query(col) : query(col, where('published', '==', true));
 
   return onSnapshot(
     q,
@@ -233,12 +281,12 @@ export function subscribeCourses(
 export function subscribeExercises(
   isAdmin: boolean,
   onData: (items: Exercise[]) => void,
-  onError?: (err: Error) => void
+  onError?: (err: Error) => void,
+  level: ClassLevel = '3AM'
 ): Unsubscribe {
-  const path = 'exercises';
-  const q = isAdmin
-    ? query(collection(db, path))
-    : query(collection(db, path), where('published', '==', true));
+  const path = levelCollectionPath(level, 'exercises');
+  const col = levelCollectionRef(level, 'exercises');
+  const q = isAdmin ? query(col) : query(col, where('published', '==', true));
 
   return onSnapshot(
     q,
@@ -255,12 +303,12 @@ export function subscribeExercises(
 export function subscribeEvents(
   isAdmin: boolean,
   onData: (items: EventItem[]) => void,
-  onError?: (err: Error) => void
+  onError?: (err: Error) => void,
+  level: ClassLevel = '3AM'
 ): Unsubscribe {
-  const path = 'events';
-  const q = isAdmin
-    ? query(collection(db, path))
-    : query(collection(db, path), where('published', '==', true));
+  const path = levelCollectionPath(level, 'events');
+  const col = levelCollectionRef(level, 'events');
+  const q = isAdmin ? query(col) : query(col, where('published', '==', true));
 
   return onSnapshot(
     q,
@@ -276,10 +324,11 @@ export function subscribeEvents(
 
 export function subscribePublicScores(
   onData: (items: ScoreRecord[]) => void,
-  onError?: (err: Error) => void
+  onError?: (err: Error) => void,
+  level: ClassLevel = '3AM'
 ): Unsubscribe {
-  const path = 'scores';
-  const q = query(collection(db, path), where('isPublic', '==', true));
+  const path = levelCollectionPath(level, 'scores');
+  const q = query(levelCollectionRef(level, 'scores'), where('isPublic', '==', true));
   return onSnapshot(
     q,
     (snap) => {
@@ -298,10 +347,11 @@ export function subscribePublicScores(
 export function subscribeStudentScores(
   uid: string,
   onData: (items: ScoreRecord[]) => void,
-  onError?: (err: Error) => void
+  onError?: (err: Error) => void,
+  level: ClassLevel = '3AM'
 ): Unsubscribe {
-  const path = 'scores';
-  const q = query(collection(db, path), where('studentUid', '==', uid));
+  const path = levelCollectionPath(level, 'scores');
+  const q = query(levelCollectionRef(level, 'scores'), where('studentUid', '==', uid));
   return onSnapshot(
     q,
     (snap) => {
@@ -319,11 +369,12 @@ export function subscribeStudentScores(
 
 export function subscribeAllScoresAdmin(
   onData: (items: ScoreRecord[]) => void,
-  onError?: (err: Error) => void
+  onError?: (err: Error) => void,
+  level: ClassLevel = '3AM'
 ): Unsubscribe {
-  const path = 'scores';
+  const path = levelCollectionPath(level, 'scores');
   return onSnapshot(
-    collection(db, path),
+    levelCollectionRef(level, 'scores'),
     (snap) => {
       const list = snap.docs
         .map((d) => {
@@ -340,11 +391,12 @@ export function subscribeAllScoresAdmin(
 export function subscribeStudentProgress(
   uid: string,
   onData: (progress: StudentProgress | null) => void,
-  onError?: (err: Error) => void
+  onError?: (err: Error) => void,
+  level: ClassLevel = '3AM'
 ): Unsubscribe {
-  const path = `studentProgress/${uid}`;
+  const path = levelDocPath(level, 'studentProgress', uid);
   return onSnapshot(
-    doc(db, 'studentProgress', uid),
+    levelDocRef(level, 'studentProgress', uid),
     (snap) => {
       onData(snap.exists() ? (snap.data() as StudentProgress) : null);
     },
@@ -354,41 +406,47 @@ export function subscribeStudentProgress(
 
 export function subscribeSettings(
   onData: (settings: AcademySettings, existsInDb: boolean) => void,
-  onError?: (err: Error) => void
+  onError?: (err: Error) => void,
+  level: ClassLevel = '3AM'
 ): Unsubscribe {
-  const path = 'settings/main';
+  const path = levelDocPath(level, 'settings', 'main');
+  const fallbackSettings = getSeedDataForLevel(level).settings;
   return onSnapshot(
-    doc(db, 'settings', 'main'),
+    levelDocRef(level, 'settings', 'main'),
     (snap) => {
       if (snap.exists()) {
         onData(snap.data() as AcademySettings, true);
       } else {
-        onData(DEFAULT_SETTINGS, false);
+        onData(fallbackSettings, false);
       }
     },
     (error) => forwardSnapshotError(error, OperationType.GET, path, onError)
   );
 }
 
-export async function submitExerciseScore(params: {
-  user: User;
-  studentName: string;
-  studentClass?: string;
-  exercise: Exercise;
-  earnedPoints: number;
-  totalPoints: number;
-  outOf20: number;
-  percentage: number;
-  durationSeconds: number;
-  isPublic?: boolean;
-  studentDrawing?: GeometryShape[];
-}): Promise<void> {
+export async function submitExerciseScore(
+  params: {
+    user: User;
+    studentName: string;
+    studentClass?: string;
+    exercise: Exercise;
+    earnedPoints: number;
+    totalPoints: number;
+    outOf20: number;
+    percentage: number;
+    durationSeconds: number;
+    isPublic?: boolean;
+    studentDrawing?: GeometryShape[];
+  },
+  level: ClassLevel = '3AM'
+): Promise<void> {
   const scoreId = sanitizeDocId(`sc_${params.user.uid.slice(0, 8)}_${Date.now()}`);
-  const scorePath = `scores/${scoreId}`;
+  const scorePath = levelDocPath(level, 'scores', scoreId);
+  const defaultStudentName = `تلميذ ${CLASS_LEVEL_META[level]?.shortLabel || '3 متوسط'}`;
 
   try {
     const scorePayload: Record<string, unknown> = {
-      studentName: params.studentName.trim().slice(0, 80) || 'تلميذ 3 متوسط',
+      studentName: params.studentName.trim().slice(0, 80) || defaultStudentName,
       studentUid: params.user.uid,
       exerciseId: sanitizeDocId(params.exercise.id),
       exerciseTitle: params.exercise.title.slice(0, 160),
@@ -409,20 +467,20 @@ export async function submitExerciseScore(params: {
       scorePayload.studentDrawing = params.studentDrawing.slice(0, 80);
     }
 
-    await setDoc(doc(db, 'scores', scoreId), scorePayload);
+    await setDoc(levelDocRef(level, 'scores', scoreId), scorePayload);
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, scorePath);
   }
 
-  const progPath = `studentProgress/${params.user.uid}`;
-  const progRef = doc(db, 'studentProgress', params.user.uid);
+  const progPath = levelDocPath(level, 'studentProgress', params.user.uid);
+  const progRef = levelDocRef(level, 'studentProgress', params.user.uid);
   try {
     const snap = await getDoc(progRef);
     const safeExId = sanitizeDocId(params.exercise.id);
     if (!snap.exists()) {
       await setDoc(progRef, {
         userId: params.user.uid,
-        studentName: params.studentName.trim().slice(0, 80) || 'تلميذ 3 متوسط',
+        studentName: params.studentName.trim().slice(0, 80) || defaultStudentName,
         completedCourseIds: [],
         completedExerciseIds: [safeExId],
         totalAttempts: 1,
@@ -431,7 +489,9 @@ export async function submitExerciseScore(params: {
       });
     } else {
       const cur = snap.data() as StudentProgress;
-      const completedEx = Array.from(new Set([...(cur.completedExerciseIds || []), safeExId])).slice(0, 200);
+      const completedEx = Array.from(
+        new Set([...(cur.completedExerciseIds || []), safeExId])
+      ).slice(0, 200);
       await updateDoc(progRef, {
         studentName: params.studentName.trim().slice(0, 80) || cur.studentName,
         completedExerciseIds: completedEx,
@@ -448,18 +508,20 @@ export async function submitExerciseScore(params: {
 export async function toggleCourseCompletion(
   user: User,
   studentName: string,
-  courseId: string
+  courseId: string,
+  level: ClassLevel = '3AM'
 ): Promise<boolean> {
-  const progPath = `studentProgress/${user.uid}`;
-  const progRef = doc(db, 'studentProgress', user.uid);
+  const progPath = levelDocPath(level, 'studentProgress', user.uid);
+  const progRef = levelDocRef(level, 'studentProgress', user.uid);
   const safeId = sanitizeDocId(courseId);
+  const defaultStudentName = `تلميذ ${CLASS_LEVEL_META[level]?.shortLabel || '3 متوسط'}`;
 
   try {
     const snap = await getDoc(progRef);
     if (!snap.exists()) {
       await setDoc(progRef, {
         userId: user.uid,
-        studentName: studentName.trim().slice(0, 80) || 'تلميذ 3 متوسط',
+        studentName: studentName.trim().slice(0, 80) || defaultStudentName,
         completedCourseIds: [safeId],
         completedExerciseIds: [],
         totalAttempts: 0,
@@ -486,17 +548,24 @@ export async function toggleCourseCompletion(
 }
 
 export async function getCourseAttachment(
-  attachmentId: string
+  attachmentId: string,
+  level: ClassLevel = '3AM'
 ): Promise<CourseAttachmentRecord | null> {
   const safeId = sanitizeDocId(attachmentId);
-  const path = `courseAttachments/${safeId}`;
+  const path = levelDocPath(level, 'courseAttachments', safeId);
   try {
-    const snap = await getDoc(doc(db, 'courseAttachments', safeId));
+    const snap = await getDoc(levelDocRef(level, 'courseAttachments', safeId));
     if (!snap.exists()) return null;
-    const record = { ...(snap.data() as Omit<CourseAttachmentRecord, 'id'>), id: snap.id };
+    const record = {
+      ...(snap.data() as Omit<CourseAttachmentRecord, 'id'>),
+      id: snap.id,
+    };
     if ((record.chunkCount || 1) > 1) {
       const chunksSnap = await getDocs(
-        query(collection(db, 'courseAttachmentChunks'), where('attachmentId', '==', safeId))
+        query(
+          levelCollectionRef(level, 'courseAttachmentChunks'),
+          where('attachmentId', '==', safeId)
+        )
       );
       const sorted = chunksSnap.docs
         .map((d) => d.data() as { chunkIndex: number; dataChunk: string })
@@ -515,11 +584,12 @@ export async function saveCourse(
     id?: string;
     pendingAttachments?: { meta: CourseAttachmentMeta; dataUrl: string }[];
     removedAttachmentIds?: string[];
-  }
+  },
+  level: ClassLevel = '3AM'
 ): Promise<string> {
   const id = course.id ? sanitizeDocId(course.id) : sanitizeDocId(`course_${Date.now()}`);
-  const path = `courses/${id}`;
-  const ref = doc(db, 'courses', id);
+  const path = levelDocPath(level, 'courses', id);
+  const ref = levelDocRef(level, 'courses', id);
   try {
     const snap = await getDoc(ref);
     const cleanAttachments: CourseAttachmentMeta[] = (course.attachments || [])
@@ -559,14 +629,21 @@ export async function saveCourse(
       for (const remId of course.removedAttachmentIds) {
         const safeAttId = sanitizeDocId(remId);
         const chunkSnap = await getDocs(
-          query(collection(db, 'courseAttachmentChunks'), where('attachmentId', '==', safeAttId))
+          query(
+            levelCollectionRef(level, 'courseAttachmentChunks'),
+            where('attachmentId', '==', safeAttId)
+          )
         ).catch(() => null);
         if (chunkSnap && !chunkSnap.empty) {
           for (const d of chunkSnap.docs) {
-            await deleteDoc(doc(db, 'courseAttachmentChunks', d.id)).catch(() => undefined);
+            await deleteDoc(levelDocRef(level, 'courseAttachmentChunks', d.id)).catch(
+              () => undefined
+            );
           }
         }
-        await deleteDoc(doc(db, 'courseAttachments', safeAttId)).catch(() => undefined);
+        await deleteDoc(levelDocRef(level, 'courseAttachments', safeAttId)).catch(
+          () => undefined
+        );
       }
     }
 
@@ -575,7 +652,7 @@ export async function saveCourse(
         const safeAttId = sanitizeDocId(item.meta.id);
         const chunks = splitDataUrlChunks(String(item.dataUrl));
         const firstChunk = chunks[0] || '';
-        await setDoc(doc(db, 'courseAttachments', safeAttId), {
+        await setDoc(levelDocRef(level, 'courseAttachments', safeAttId), {
           courseId: id,
           fileName: String(item.meta.fileName || 'file').slice(0, 200),
           fileKind: item.meta.fileKind || 'other',
@@ -590,7 +667,7 @@ export async function saveCourse(
 
         for (let ci = 1; ci < chunks.length && ci <= 14; ci++) {
           const chunkId = sanitizeDocId(`${safeAttId}_c_${ci}`);
-          await setDoc(doc(db, 'courseAttachmentChunks', chunkId), {
+          await setDoc(levelDocRef(level, 'courseAttachmentChunks', chunkId), {
             attachmentId: safeAttId,
             courseId: id,
             chunkIndex: ci,
@@ -609,27 +686,38 @@ export async function saveCourse(
   }
 }
 
-export async function deleteCourse(courseId: string): Promise<void> {
+export async function deleteCourse(
+  courseId: string,
+  level: ClassLevel = '3AM'
+): Promise<void> {
   const safeCourseId = sanitizeDocId(courseId);
-  const path = `courses/${safeCourseId}`;
+  const path = levelDocPath(level, 'courses', safeCourseId);
   try {
     const chunkSnap = await getDocs(
-      query(collection(db, 'courseAttachmentChunks'), where('courseId', '==', safeCourseId))
+      query(
+        levelCollectionRef(level, 'courseAttachmentChunks'),
+        where('courseId', '==', safeCourseId)
+      )
     ).catch(() => null);
     if (chunkSnap && !chunkSnap.empty) {
       for (const d of chunkSnap.docs) {
-        await deleteDoc(doc(db, 'courseAttachmentChunks', d.id)).catch(() => undefined);
+        await deleteDoc(levelDocRef(level, 'courseAttachmentChunks', d.id)).catch(
+          () => undefined
+        );
       }
     }
     const attSnap = await getDocs(
-      query(collection(db, 'courseAttachments'), where('courseId', '==', safeCourseId))
+      query(
+        levelCollectionRef(level, 'courseAttachments'),
+        where('courseId', '==', safeCourseId)
+      )
     ).catch(() => null);
     if (attSnap && !attSnap.empty) {
       for (const d of attSnap.docs) {
-        await deleteDoc(doc(db, 'courseAttachments', d.id)).catch(() => undefined);
+        await deleteDoc(levelDocRef(level, 'courseAttachments', d.id)).catch(() => undefined);
       }
     }
-    await deleteDoc(doc(db, 'courses', safeCourseId));
+    await deleteDoc(levelDocRef(level, 'courses', safeCourseId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }
@@ -650,8 +738,11 @@ function sanitizeQuestionsForFirestore(questions: Question[]): Record<string, un
       base.unit = q.unit.trim().slice(0, 30);
     }
     if (base.type === 'choice') {
-      base.choices = (q.choices || ['', '', '', '']).slice(0, 6).map((c) => String(c || '').slice(0, 300));
-      base.correctChoiceIndex = typeof q.correctChoiceIndex === 'number' ? q.correctChoiceIndex : 0;
+      base.choices = (q.choices || ['', '', '', ''])
+        .slice(0, 6)
+        .map((c) => String(c || '').slice(0, 300));
+      base.correctChoiceIndex =
+        typeof q.correctChoiceIndex === 'number' ? q.correctChoiceIndex : 0;
     } else if (base.type === 'number') {
       base.correctNumber = Number.isFinite(Number(q.correctNumber)) ? Number(q.correctNumber) : 0;
       if (Array.isArray(q.acceptedNumbers) && q.acceptedNumbers.length > 0) {
@@ -672,11 +763,12 @@ function sanitizeQuestionsForFirestore(questions: Question[]): Record<string, un
 
 export async function saveExercise(
   adminUid: string,
-  exercise: Omit<Exercise, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'> & { id?: string }
+  exercise: Omit<Exercise, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'> & { id?: string },
+  level: ClassLevel = '3AM'
 ): Promise<string> {
   const id = exercise.id ? sanitizeDocId(exercise.id) : sanitizeDocId(`ex_${Date.now()}`);
-  const path = `exercises/${id}`;
-  const ref = doc(db, 'exercises', id);
+  const path = levelDocPath(level, 'exercises', id);
+  const ref = levelDocRef(level, 'exercises', id);
   try {
     const snap = await getDoc(ref);
     const mutableFields: Record<string, unknown> = {
@@ -703,7 +795,9 @@ export async function saveExercise(
         teacherCorrectionShapes: (gd.teacherCorrectionShapes || []).slice(0, 80),
       };
       if (gd.teacherCorrectionImageUrl && gd.teacherCorrectionImageUrl.trim()) {
-        sanitizedGeometry.teacherCorrectionImageUrl = gd.teacherCorrectionImageUrl.trim().slice(0, 500);
+        sanitizedGeometry.teacherCorrectionImageUrl = gd.teacherCorrectionImageUrl
+          .trim()
+          .slice(0, 500);
       }
       mutableFields.geometryData = sanitizedGeometry;
     }
@@ -722,10 +816,13 @@ export async function saveExercise(
   }
 }
 
-export async function deleteExercise(exerciseId: string): Promise<void> {
-  const path = `exercises/${exerciseId}`;
+export async function deleteExercise(
+  exerciseId: string,
+  level: ClassLevel = '3AM'
+): Promise<void> {
+  const path = levelDocPath(level, 'exercises', exerciseId);
   try {
-    await deleteDoc(doc(db, 'exercises', exerciseId));
+    await deleteDoc(levelDocRef(level, 'exercises', exerciseId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }
@@ -733,11 +830,12 @@ export async function deleteExercise(exerciseId: string): Promise<void> {
 
 export async function saveEvent(
   adminUid: string,
-  event: Omit<EventItem, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'> & { id?: string }
+  event: Omit<EventItem, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'> & { id?: string },
+  level: ClassLevel = '3AM'
 ): Promise<string> {
   const id = event.id ? sanitizeDocId(event.id) : sanitizeDocId(`evt_${Date.now()}`);
-  const path = `events/${id}`;
-  const ref = doc(db, 'events', id);
+  const path = levelDocPath(level, 'events', id);
+  const ref = levelDocRef(level, 'events', id);
   try {
     const snap = await getDoc(ref);
     const mutableFields: Record<string, unknown> = {
@@ -765,19 +863,25 @@ export async function saveEvent(
   }
 }
 
-export async function deleteEvent(eventId: string): Promise<void> {
-  const path = `events/${eventId}`;
+export async function deleteEvent(
+  eventId: string,
+  level: ClassLevel = '3AM'
+): Promise<void> {
+  const path = levelDocPath(level, 'events', eventId);
   try {
-    await deleteDoc(doc(db, 'events', eventId));
+    await deleteDoc(levelDocRef(level, 'events', eventId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
-export async function deleteScoreRecord(scoreId: string): Promise<void> {
-  const path = `scores/${scoreId}`;
+export async function deleteScoreRecord(
+  scoreId: string,
+  level: ClassLevel = '3AM'
+): Promise<void> {
+  const path = levelDocPath(level, 'scores', scoreId);
   try {
-    await deleteDoc(doc(db, 'scores', scoreId));
+    await deleteDoc(levelDocRef(level, 'scores', scoreId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }
@@ -790,9 +894,10 @@ export async function saveTeacherScoreCorrection(
     teacherCorrectionShapes: GeometryShape[];
     total: number;
     outOf20?: number;
-  }
+  },
+  level: ClassLevel = '3AM'
 ): Promise<void> {
-  const path = `scores/${scoreId}`;
+  const path = levelDocPath(level, 'scores', scoreId);
   try {
     const updates: Record<string, unknown> = {
       teacherNote: params.teacherNote.trim().slice(0, 2000),
@@ -805,7 +910,7 @@ export async function saveTeacherScoreCorrection(
       updates.percentage = Math.round((clamped20 / 20) * 100);
       updates.score = Math.round((clamped20 / 20) * Math.max(1, params.total) * 10) / 10;
     }
-    await updateDoc(doc(db, 'scores', scoreId), updates);
+    await updateDoc(levelDocRef(level, 'scores', scoreId), updates);
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
@@ -813,10 +918,11 @@ export async function saveTeacherScoreCorrection(
 
 export async function saveAcademySettings(
   adminUid: string,
-  settings: AcademySettings
+  settings: AcademySettings,
+  level: ClassLevel = '3AM'
 ): Promise<void> {
-  const path = 'settings/main';
-  const ref = doc(db, 'settings', 'main');
+  const path = levelDocPath(level, 'settings', 'main');
+  const ref = levelDocRef(level, 'settings', 'main');
   try {
     const snap = await getDoc(ref);
     const payload = {
@@ -838,26 +944,28 @@ export async function saveAcademySettings(
 
 export async function seedCurriculumIfEmpty(
   adminUid: string,
-  force = false
+  force = false,
+  level: ClassLevel = '3AM'
 ): Promise<{ seeded: number }> {
   let seeded = 0;
+  const bundle = getSeedDataForLevel(level);
 
   try {
-    const settingsSnap = await getDoc(doc(db, 'settings', 'main'));
+    const settingsSnap = await getDoc(levelDocRef(level, 'settings', 'main'));
     const isInitialized = settingsSnap.exists();
     if (!isInitialized || force) {
-      const coursesSnap = await getDocs(collection(db, 'courses'));
+      const coursesSnap = await getDocs(levelCollectionRef(level, 'courses'));
       if (coursesSnap.empty) {
-        for (const course of SEED_COURSES) {
-          await saveCourse(adminUid, course);
+        for (const course of bundle.courses) {
+          await saveCourse(adminUid, course, level);
           seeded += 1;
         }
       }
 
-      const exercisesSnap = await getDocs(collection(db, 'exercises'));
+      const exercisesSnap = await getDocs(levelCollectionRef(level, 'exercises'));
       if (exercisesSnap.empty) {
-        for (const ex of SEED_EXERCISES) {
-          await saveExercise(adminUid, ex);
+        for (const ex of bundle.exercises) {
+          await saveExercise(adminUid, ex, level);
           seeded += 1;
         }
       } else {
@@ -866,28 +974,28 @@ export async function seedCurriculumIfEmpty(
           return data.category === 'geometry' || Boolean(data.geometryData);
         });
         if (!hasGeometryInDb) {
-          for (const ex of SEED_EXERCISES.filter((e) => e.category === 'geometry')) {
-            await saveExercise(adminUid, ex);
+          for (const ex of bundle.exercises.filter((e) => e.category === 'geometry')) {
+            await saveExercise(adminUid, ex, level);
             seeded += 1;
           }
         }
       }
 
-      const eventsSnap = await getDocs(collection(db, 'events'));
+      const eventsSnap = await getDocs(levelCollectionRef(level, 'events'));
       if (eventsSnap.empty) {
-        for (const evt of SEED_EVENTS) {
-          await saveEvent(adminUid, evt);
+        for (const evt of bundle.events) {
+          await saveEvent(adminUid, evt, level);
           seeded += 1;
         }
       }
 
       if (!isInitialized) {
-        await saveAcademySettings(adminUid, DEFAULT_SETTINGS);
+        await saveAcademySettings(adminUid, bundle.settings, level);
         seeded += 1;
       }
     }
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'seedCurriculum');
+    handleFirestoreError(error, OperationType.WRITE, `seedCurriculum/${level}`);
   }
 
   return { seeded };

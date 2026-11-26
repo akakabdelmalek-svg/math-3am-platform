@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
   BookOpen,
   Calculator,
@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import type {
   AcademySettings,
+  ClassLevel,
   Course,
   CourseAttachmentKind,
   CourseAttachmentMeta,
@@ -51,7 +52,8 @@ import {
   type PendingLessonAttachment,
 } from '../utils/lessonFileImport';
 import {
-  CHAPTERS_3AM,
+  CLASS_LEVEL_META,
+  getChaptersForLevel,
   parseAcceptedAnswersList,
   parseNumericInput,
 } from '../utils/mathPlatform';
@@ -59,6 +61,7 @@ import { GeometryCanvas } from './GeometryCanvas';
 import { MathText } from './MathText';
 
 interface AdminDashboardViewProps {
+  activeLevel: ClassLevel;
   adminUid: string;
   adminEmail: string;
   courses: Course[];
@@ -128,6 +131,7 @@ const FILE_KIND_LABELS: Record<CourseAttachmentKind, string> = {
 };
 
 export function AdminDashboardView({
+  activeLevel,
   adminEmail,
   courses,
   exercises,
@@ -146,6 +150,8 @@ export function AdminDashboardView({
   onSaveSettings,
   onSeedCurriculum,
 }: AdminDashboardViewPropsExtended) {
+  const levelMeta = CLASS_LEVEL_META[activeLevel];
+  const levelChapters = useMemo(() => getChaptersForLevel(activeLevel), [activeLevel]);
   const [tab, setTab] = useState<AdminTab>(initialTab || 'exercises');
   const [busy, setBusy] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
@@ -158,7 +164,7 @@ export function AdminDashboardView({
   // Exercise builder state
   const [exId, setExId] = useState<string | undefined>(undefined);
   const [exTitle, setExTitle] = useState('');
-  const [exChapter, setExChapter] = useState<string>(CHAPTERS_3AM[0]);
+  const [exChapter, setExChapter] = useState<string>(levelChapters[0]);
   const [exCategory, setExCategory] = useState<ExerciseCategory>('daily');
   const [exDifficulty, setExDifficulty] = useState<DifficultyLevel>('medium');
   const [exDuration, setExDuration] = useState(15);
@@ -177,7 +183,7 @@ export function AdminDashboardView({
   // Course editor state
   const [cId, setCId] = useState<string | undefined>(undefined);
   const [cTitle, setCTitle] = useState('');
-  const [cChapter, setCChapter] = useState<string>(CHAPTERS_3AM[0]);
+  const [cChapter, setCChapter] = useState<string>(levelChapters[0]);
   const [cOrder, setCOrder] = useState(1);
   const [cDuration, setCDuration] = useState(25);
   const [cSummary, setCSummary] = useState('');
@@ -218,10 +224,21 @@ export function AdminDashboardView({
   const [reviewOutOf20, setReviewOutOf20] = useState<string>('');
   const [reviewShapes, setReviewShapes] = useState<GeometryShape[]>([]);
 
+  useEffect(() => {
+    setExId(undefined);
+    setExChapter(levelChapters[0]);
+    setCId(undefined);
+    setCChapter(levelChapters[0]);
+    setEvId(undefined);
+    setReviewingScoreId(null);
+    setStatusMsg(null);
+    setErrorMsg(null);
+  }, [activeLevel, levelChapters]);
+
   function resetExerciseForm() {
     setExId(undefined);
     setExTitle('');
-    setExChapter(CHAPTERS_3AM[0]);
+    setExChapter(levelChapters[0]);
     setExCategory('daily');
     setExDifficulty('medium');
     setExDuration(15);
@@ -277,7 +294,7 @@ export function AdminDashboardView({
   function resetCourseForm() {
     setCId(undefined);
     setCTitle('');
-    setCChapter(CHAPTERS_3AM[0]);
+    setCChapter(levelChapters[0]);
     setCOrder(courses.length + 1);
     setCDuration(25);
     setCSummary('');
@@ -724,10 +741,11 @@ export function AdminDashboardView({
           </span>
           <div>
             <h1 className="m-0 text-lg font-bold text-white sm:text-xl">
-              لوحة الإدارة — أكاديمية الرياضيات 3 متوسط
+              لوحة الإدارة — {levelMeta.title} ({activeLevel})
             </h1>
             <p className="m-0 text-xs text-[#FFE8B3]">
-              مسجل بصلاحية الإدارة: <span dir="ltr">{adminEmail}</span>
+              خادم {activeLevel} المستقل · مسجل بصلاحية الإدارة:{' '}
+              <span dir="ltr">{adminEmail}</span>
             </p>
           </div>
         </div>
@@ -751,7 +769,7 @@ export function AdminDashboardView({
           className="btn !bg-white/15 !text-white !py-2 !px-3.5 !text-xs hover:!bg-white/25"
         >
           <Database className="h-4 w-4" />
-          <span>تهيئة منهاج 3 متوسط</span>
+          <span>تهيئة منهاج {levelMeta.shortLabel}</span>
         </button>
       </section>
 
@@ -882,7 +900,7 @@ export function AdminDashboardView({
                   onChange={(e) => setExChapter(e.target.value)}
                   className="w-full rounded-xl border border-[#D6C9F3] bg-white px-3 py-2 text-sm focus:border-[#6D28D9] focus:outline-none"
                 >
-                  {CHAPTERS_3AM.map((ch) => (
+                  {levelChapters.map((ch) => (
                     <option key={ch} value={ch}>
                       {ch}
                     </option>
@@ -1579,7 +1597,7 @@ export function AdminDashboardView({
                   onChange={(e) => setCChapter(e.target.value)}
                   className="w-full rounded-xl border border-[#D6C9F3] bg-white px-3 py-2 text-sm"
                 >
-                  {CHAPTERS_3AM.map((ch) => (
+                  {levelChapters.map((ch) => (
                     <option key={ch} value={ch}>
                       {ch}
                     </option>
@@ -1688,7 +1706,8 @@ export function AdminDashboardView({
             </div>
             {courses.length === 0 ? (
               <div className="notebook-card p-6 text-center text-xs text-[#6E6390]">
-                لا توجد دروس مخزنة حالياً. أضف درساً جديداً من النموذج أو اضغط «تهيئة منهاج 3 متوسط».
+                لا توجد دروس مخزنة حالياً. أضف درساً جديداً من النموذج أو اضغط «تهيئة منهاج{' '}
+                {levelMeta.shortLabel}».
               </div>
             ) : (
               courses.map((c) => (

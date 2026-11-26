@@ -1,6 +1,8 @@
 import type {
   AnswerMap,
   ChapterMastery,
+  ClassLevel,
+  ClassLevelMeta,
   Course,
   DifficultyLevel,
   Exercise,
@@ -14,6 +16,51 @@ import type {
   StudyRecommendation,
 } from '../types/math.ts';
 
+export const CLASS_LEVELS: readonly ClassLevel[] = ['1AM', '2AM', '3AM', '4AM'];
+
+export const CLASS_LEVEL_META: Record<ClassLevel, ClassLevelMeta> = {
+  '1AM': {
+    id: '1AM',
+    shortLabel: '1 متوسط',
+    title: 'السنة الأولى متوسط',
+    subtitle: 'الأعداد العشرية، الكسور، التناظر المحوري، المحيطات والمساحات',
+    badge: '1AM · خادم مستقل',
+    accentC: '#0284c7',
+    accentD: '#0369a1',
+    sym: '1',
+  },
+  '2AM': {
+    id: '2AM',
+    shortLabel: '2 متوسط',
+    title: 'السنة الثانية متوسط',
+    subtitle: 'الكسور، الأعداد النسبية، التناظر المركزي، المثلثات ومتوازي الأضلاع',
+    badge: '2AM · خادم مستقل',
+    accentC: '#059669',
+    accentD: '#047857',
+    sym: '2',
+  },
+  '3AM': {
+    id: '3AM',
+    shortLabel: '3 متوسط',
+    title: 'السنة الثالثة متوسط',
+    subtitle: 'القوى، الحساب الحرفي، نظرية فيثاغورس، تقايس المثلثات وجيب التمام',
+    badge: '3AM · خادم مستقل',
+    accentC: '#7c3aed',
+    accentD: '#5b21b6',
+    sym: '3',
+  },
+  '4AM': {
+    id: '4AM',
+    shortLabel: '4 متوسط (BEM)',
+    title: 'السنة الرابعة متوسط',
+    subtitle: 'الجذور، المتطابقات الشهيرة، طالس، النسب المثلثية، الدوال والأشعة',
+    badge: '4AM · خادم مستقل',
+    accentC: '#d97706',
+    accentD: '#b45309',
+    sym: '4',
+  },
+};
+
 export const CHAPTERS_3AM: readonly string[] = [
   'الأعداد النسبية والكسور والأعداد الناطقة',
   'المثلثات وتقايس المثلثات ومستقيم المنتصفين',
@@ -22,6 +69,46 @@ export const CHAPTERS_3AM: readonly string[] = [
   'المثلث القائم والدائرة ونظرية فيثاغورس',
   'التناسبية وتنظيم المعطيات',
 ];
+
+export const CHAPTERS_BY_LEVEL: Record<ClassLevel, readonly string[]> = {
+  '1AM': [
+    'الأعداد الطبيعية والأعداد العشرية',
+    'الحساب على الأعداد العشرية والمدد',
+    'القسمة الإقليدية والعشرية والكسور',
+    'الأعداد النسبية والحساب الحرفي الأولي',
+    'الإنشاءات الهندسية والزوايا والمضلعات',
+    'التناظر المحوري، المحيطات والمساحات والتناسبية',
+  ],
+  '2AM': [
+    'سلسلة العمليات على الأعداد الطبيعية والعشرية',
+    'الكسور والعمليات عليها',
+    'الأعداد النسبية: المقارنة والجمع والطرح',
+    'المعادلات، التناسبية وتنظيم المعطيات',
+    'التناظر المركزي والزوايا والتوازي',
+    'المثلثات، متوازي الأضلاع والمجسمات',
+  ],
+  '3AM': CHAPTERS_3AM,
+  '4AM': [
+    'الأعداد الطبيعية والأعداد الناطقة والجذور التربيعية',
+    'الحساب الحرفي والمتطابقات الشهيرة والتحليل',
+    'المعادلات والمتراجحات من الدرجة الأولى',
+    'جملة معادلتين والدوال الخطية والتآلفية',
+    'خاصية طالس والنسب المثلثية في المثلث القائم',
+    'الأشعة والانسحاب، المعالم والدوران',
+  ],
+};
+
+export function getChaptersForLevel(level: ClassLevel): readonly string[] {
+  return CHAPTERS_BY_LEVEL[level] || CHAPTERS_3AM;
+}
+
+export function parseClassLevel(raw: string | null | undefined): ClassLevel | null {
+  const upper = String(raw || '').trim().toUpperCase();
+  if (upper === '1AM' || upper === '2AM' || upper === '3AM' || upper === '4AM') {
+    return upper;
+  }
+  return null;
+}
 
 export function sanitizeDocId(raw: string): string {
   const cleaned = String(raw || '')
@@ -209,9 +296,10 @@ export function computeTopicMastery(
   exercises: Exercise[],
   courses: Course[],
   completedCourseIds: string[],
-  completedExerciseIds: string[]
+  completedExerciseIds: string[],
+  chapters: readonly string[] = CHAPTERS_3AM
 ): { mastery: ChapterMastery[]; recommendations: StudyRecommendation[] } {
-  const chapterSet = new Set<string>(CHAPTERS_3AM);
+  const chapterSet = new Set<string>(chapters);
   exercises.forEach((e) => chapterSet.add(e.chapter));
   courses.forEach((c) => chapterSet.add(c.chapter));
   scores.forEach((s) => chapterSet.add(s.chapter));

@@ -11,6 +11,10 @@ service cloud.firestore {
       return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    function isValidLevelId(levelId) {
+      return levelId in ['1AM', '2AM', '3AM', '4AM'];
+    }
+
     function incoming() {
       return request.resource.data;
     }
@@ -430,6 +434,179 @@ service cloud.firestore {
           )
         );
       allow delete: if isValidId(adminId) && isAdmin();
+    }
+
+    // ==================== Per-Class Isolated Server Collections (/levels/{levelId}/...) ====================
+    match /levels/{levelId} {
+      allow read, write: if false;
+
+      match /studentProgress/{userId} {
+        allow get: if isValidLevelId(levelId) && isValidId(userId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidLevelId(levelId) && isAdmin();
+        allow create: if isValidLevelId(levelId)
+          && isValidId(userId)
+          && (isOwner(userId) || isAdmin())
+          && isValidStudentProgress(incoming(), userId)
+          && incoming().updatedAt == request.time;
+        allow update: if isValidLevelId(levelId)
+          && isValidId(userId)
+          && isValidStudentProgress(incoming(), userId)
+          && incoming().userId == existing().userId
+          && incoming().updatedAt == request.time
+          && (
+            isAdmin() ||
+            (
+              isOwner(userId)
+              && incoming().diff(existing()).affectedKeys().hasOnly(['studentName', 'completedCourseIds', 'completedExerciseIds', 'totalAttempts', 'bestOutOf20', 'updatedAt'])
+            )
+          );
+        allow delete: if isValidLevelId(levelId) && isValidId(userId) && isAdmin();
+      }
+
+      match /courses/{courseId} {
+        allow get: if isValidLevelId(levelId) && isValidId(courseId) && (existing().published == true || isAdmin());
+        allow list: if isValidLevelId(levelId) && (resource.data.published == true || isAdmin());
+        allow create: if isValidLevelId(levelId)
+          && isValidId(courseId)
+          && isAdmin()
+          && isValidCourse(incoming())
+          && incoming().createdBy == request.auth.uid
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidLevelId(levelId)
+          && isValidId(courseId)
+          && isAdmin()
+          && isValidCourse(incoming())
+          && incoming().createdBy == existing().createdBy
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'chapter', 'chapterOrder', 'summary', 'keyRules', 'videoUrl', 'pdfUrl', 'attachments', 'durationMin', 'published', 'updatedAt']);
+        allow delete: if isValidLevelId(levelId) && isValidId(courseId) && isAdmin();
+      }
+
+      match /courseAttachments/{attachmentId} {
+        allow get: if isValidLevelId(levelId) && isValidId(attachmentId) && (existing().published == true || isAdmin());
+        allow list: if isValidLevelId(levelId) && (resource.data.published == true || isAdmin());
+        allow create: if isValidLevelId(levelId)
+          && isValidId(attachmentId)
+          && isAdmin()
+          && isValidCourseAttachment(incoming())
+          && incoming().createdBy == request.auth.uid
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/levels/$(levelId)/courses/$(incoming().courseId));
+        allow update: if isValidLevelId(levelId)
+          && isValidId(attachmentId)
+          && isAdmin()
+          && isValidCourseAttachment(incoming())
+          && incoming().createdBy == existing().createdBy
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['published', 'courseId']);
+        allow delete: if isValidLevelId(levelId) && isValidId(attachmentId) && isAdmin();
+      }
+
+      match /courseAttachmentChunks/{chunkId} {
+        allow get: if isValidLevelId(levelId) && isValidId(chunkId) && (existing().published == true || isAdmin());
+        allow list: if isValidLevelId(levelId) && (resource.data.published == true || isAdmin());
+        allow create: if isValidLevelId(levelId)
+          && isValidId(chunkId)
+          && isAdmin()
+          && isValidCourseAttachmentChunk(incoming())
+          && incoming().createdBy == request.auth.uid
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/levels/$(levelId)/courseAttachments/$(incoming().attachmentId));
+        allow update: if isValidLevelId(levelId)
+          && isValidId(chunkId)
+          && isAdmin()
+          && isValidCourseAttachmentChunk(incoming())
+          && incoming().createdBy == existing().createdBy
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['published']);
+        allow delete: if isValidLevelId(levelId) && isValidId(chunkId) && isAdmin();
+      }
+
+      match /exercises/{exerciseId} {
+        allow get: if isValidLevelId(levelId) && isValidId(exerciseId) && (existing().published == true || isAdmin());
+        allow list: if isValidLevelId(levelId) && (resource.data.published == true || isAdmin());
+        allow create: if isValidLevelId(levelId)
+          && isValidId(exerciseId)
+          && isAdmin()
+          && isValidExercise(incoming())
+          && incoming().createdBy == request.auth.uid
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidLevelId(levelId)
+          && isValidId(exerciseId)
+          && isAdmin()
+          && isValidExercise(incoming())
+          && incoming().createdBy == existing().createdBy
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'chapter', 'category', 'difficulty', 'durationMinutes', 'description', 'attachmentUrl', 'geometryData', 'questions', 'published', 'updatedAt']);
+        allow delete: if isValidLevelId(levelId) && isValidId(exerciseId) && isAdmin();
+      }
+
+      match /events/{eventId} {
+        allow get: if isValidLevelId(levelId) && isValidId(eventId) && (existing().published == true || isAdmin());
+        allow list: if isValidLevelId(levelId) && (resource.data.published == true || isAdmin());
+        allow create: if isValidLevelId(levelId)
+          && isValidId(eventId)
+          && isAdmin()
+          && isValidEvent(incoming())
+          && incoming().createdBy == request.auth.uid
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidLevelId(levelId)
+          && isValidId(eventId)
+          && isAdmin()
+          && isValidEvent(incoming())
+          && incoming().createdBy == existing().createdBy
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'eventType', 'eventDate', 'eventTime', 'description', 'link', 'published', 'updatedAt']);
+        allow delete: if isValidLevelId(levelId) && isValidId(eventId) && isAdmin();
+      }
+
+      match /scores/{scoreId} {
+        allow get: if isValidLevelId(levelId) && isValidId(scoreId) && (isAdmin() || (isSignedIn() && existing().studentUid == request.auth.uid) || existing().isPublic == true);
+        allow list: if isValidLevelId(levelId) && (isAdmin() || (isSignedIn() && resource.data.studentUid == request.auth.uid) || resource.data.isPublic == true);
+        allow create: if isValidLevelId(levelId)
+          && isValidId(scoreId)
+          && isSignedIn()
+          && isValidScore(incoming())
+          && incoming().studentUid == request.auth.uid
+          && !('teacherNote' in incoming())
+          && !('teacherCorrectionShapes' in incoming())
+          && (!('gradedStatus' in incoming()) || incoming().gradedStatus == 'auto')
+          && incoming().createdAt == request.time;
+        allow update: if isValidLevelId(levelId)
+          && isValidId(scoreId)
+          && isAdmin()
+          && isValidScore(incoming())
+          && incoming().studentUid == existing().studentUid
+          && incoming().exerciseId == existing().exerciseId
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['teacherNote', 'teacherCorrectionShapes', 'gradedStatus', 'score', 'outOf20', 'percentage']);
+        allow delete: if isValidLevelId(levelId) && isValidId(scoreId) && (isAdmin() || (isSignedIn() && existing().studentUid == request.auth.uid));
+      }
+
+      match /settings/{settingId} {
+        allow get: if isValidLevelId(levelId) && isValidId(settingId);
+        allow list: if isValidLevelId(levelId) && resource.data.targetDate is string;
+        allow create: if isValidLevelId(levelId)
+          && isValidId(settingId)
+          && isAdmin()
+          && isValidSetting(incoming())
+          && incoming().updatedBy == request.auth.uid
+          && incoming().updatedAt == request.time;
+        allow update: if isValidLevelId(levelId)
+          && isValidId(settingId)
+          && isAdmin()
+          && isValidSetting(incoming())
+          && incoming().updatedBy == request.auth.uid
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['announcement', 'targetDate', 'targetLabel', 'updatedBy', 'updatedAt']);
+        allow delete: if isValidLevelId(levelId) && isValidId(settingId) && isAdmin();
+      }
     }
   }
 }

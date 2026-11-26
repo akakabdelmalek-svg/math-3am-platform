@@ -489,6 +489,7 @@
         "active",
         "createdAt"
       ]
+    },
     "CourseAttachment": {
       "title": "CourseAttachment",
       "description": "Imported lesson file payload (JPG image, PDF, Word DOCX, or PowerPoint PPTX) linked to a Course.",
@@ -645,6 +646,38 @@
     "/admins/{adminId}": {
       "schema": { "$ref": "#/entities/Admin" },
       "description": "Stores authorized teacher/admin UIDs."
+    },
+    "/levels/{levelId}/studentProgress/{userId}": {
+      "schema": { "$ref": "#/entities/StudentProgress" },
+      "description": "Stores per-level (1AM/2AM/4AM) student progress."
+    },
+    "/levels/{levelId}/courses/{courseId}": {
+      "schema": { "$ref": "#/entities/Course" },
+      "description": "Stores per-level (1AM/2AM/4AM) Mathematics lessons."
+    },
+    "/levels/{levelId}/courseAttachments/{attachmentId}": {
+      "schema": { "$ref": "#/entities/CourseAttachment" },
+      "description": "Stores per-level (1AM/2AM/4AM) imported lesson attachments."
+    },
+    "/levels/{levelId}/courseAttachmentChunks/{chunkId}": {
+      "schema": { "$ref": "#/entities/CourseAttachmentChunk" },
+      "description": "Stores per-level (1AM/2AM/4AM) attachment chunks."
+    },
+    "/levels/{levelId}/exercises/{exerciseId}": {
+      "schema": { "$ref": "#/entities/Exercise" },
+      "description": "Stores per-level (1AM/2AM/4AM) interactive Math exercises and quizzes."
+    },
+    "/levels/{levelId}/events/{eventId}": {
+      "schema": { "$ref": "#/entities/Event" },
+      "description": "Stores per-level (1AM/2AM/4AM) upcoming events and deadlines."
+    },
+    "/levels/{levelId}/scores/{scoreId}": {
+      "schema": { "$ref": "#/entities/Score" },
+      "description": "Stores per-level (1AM/2AM/4AM) student exercise submissions and grades."
+    },
+    "/levels/{levelId}/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/Setting" },
+      "description": "Stores per-level (1AM/2AM/4AM) class settings and announcement."
     }
   }
 }
